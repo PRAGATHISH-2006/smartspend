@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+web-build/
+.DS_Store
+*.log
+drive_page.html
+October_2026_Transactions.pdf
