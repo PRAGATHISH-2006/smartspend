@@ -33,6 +33,7 @@ import { AppHeader } from '../../components/common/AppHeader';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { CalendarPicker } from '../../components/common/CalendarPicker';
+import { PWAInstallBanner } from '../../components/common/PWAInstallBanner';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { formatINR } from '../../utils/currency';
@@ -426,6 +427,9 @@ export const SettingsScreen: React.FC<Props> = () => {
             />
           </View>
         </View>
+
+        {/* PWA Mobile App Installation Banner */}
+        <PWAInstallBanner />
 
         {/* Development & Demo Testing Controls */}
         <View style={[styles.card, styles.demoCard]}>

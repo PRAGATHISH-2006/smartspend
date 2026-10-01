@@ -32,6 +32,7 @@ import { AddEditFixedExpenseModal } from '../../components/fixed/AddEditFixedExp
 import { EditTodayAmountModal } from '../../components/fixed/EditTodayAmountModal';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { LoadingState } from '../../components/common/LoadingState';
+import { PWAInstallBanner } from '../../components/common/PWAInstallBanner';
 import { TodayFixedExpenseItem } from '../../types/financial';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'HomeTab'>;
@@ -99,6 +100,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           />
         }
       >
+        {/* PWA Mobile Install Banner */}
+        <PWAInstallBanner />
+
         {/* 1. Hero Balance Card */}
         <BalanceCard
           currentBalance={summary.currentBalance}
