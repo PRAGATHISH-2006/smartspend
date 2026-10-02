@@ -337,13 +337,25 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     lowBalanceThreshold: Number(budgetSettings?.low_balance_threshold ?? 2000),
   });
 
+  // Active Cycle Occurrences Filter:
+  // Isolate occurrences to the current cycle (created on or after the latest Rollover Surplus)
+  const latestRollover = moneyAdditions
+    .filter((a) => (a.description || '').toLowerCase().includes('rollover surplus'))
+    .sort((a, b) => new Date(b.created_at || b.added_at).getTime() - new Date(a.created_at || a.added_at).getTime())[0];
+
+  const rolloverCutoffTime = latestRollover
+    ? new Date(latestRollover.created_at || latestRollover.added_at).getTime()
+    : 0;
+
   // Today's occurrences & pending cycle occurrences mapped with fixed expense rule details
   const todayStr = getTodayDateString();
   const todayFixedExpenses: TodayFixedExpenseItem[] = occurrences
     .filter((o) => {
-      if (o.occurrence_date === todayStr) return true;
-      if (o.status === 'pending') return true; // Keep all pending items visible so user can Pay/Skip
-      return false;
+      const occCreatedTime = new Date(o.created_at || o.occurrence_date).getTime();
+      if (rolloverCutoffTime > 0 && occCreatedTime < rolloverCutoffTime) {
+        return false; // Skip occurrences from closed prior cycles
+      }
+      return o.occurrence_date === todayStr || o.status === 'pending';
     })
     .map((o) => {
       const rule = fixedExpenses.find((r) => r.id === o.fixed_expense_id);
@@ -857,14 +869,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const startDateStr =
         budgetSettings?.custom_start_date || format(currentPeriod.periodStart, 'yyyy-MM-dd');
-      const endDateStr =
-        budgetSettings?.custom_end_date || format(currentPeriod.periodEnd, 'yyyy-MM-dd');
-      const closingBalance = summary.currentBalance;
-      const rolloverAmount = Math.max(0, closingBalance);
-
-      // NOTE: We do NOT insert a duplicate money_additions row for rolloverAmount,
-      // because current balance is transaction-based across the user ledger.
-      // The remaining balance naturally stays in the wallet!
+      // 1. Transfer remaining surplus to next month's wallet and log transaction
+      if (rolloverAmount > 0) {
+        await supabase.from('money_additions').insert({
+          user_id: user.id,
+          amount: rolloverAmount,
+          description: `Rollover Surplus from Closed Month (${startDateStr} to ${endDateStr})`,
+          payment_method: 'Month-End Rollover',
+          added_at: new Date().toISOString(),
+        });
+      }
 
       // 2. Generate transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf) for Drive and Email
       const monthName = format(today, 'MMMM_yyyy'); // e.g. "October_2026"
@@ -928,7 +942,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('Statement email error:', emailErr);
       }
 
-      // 4. Reset budget cycle: Start fresh from today through the end of next month
+      // 4. Advance budget cycle: Start fresh from today through the end of next month
       const newStartDateStr = getTodayDateString(today);
       const newEndDateStr = format(endOfMonth(addMonths(today, 1)), 'yyyy-MM-dd');
 
@@ -937,6 +951,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         custom_start_date: newStartDateStr,
         custom_end_date: newEndDateStr,
       });
+
+      // 5. Generate fresh pending occurrences for all active recurring expenses in the new cycle
+      const activeRules = fixedExpenses.filter((r) => r.active);
+      if (activeRules.length > 0) {
+        const newOccs = activeRules.map((rule) => ({
+          fixed_expense_id: rule.id,
+          user_id: user.id,
+          occurrence_date: newStartDateStr,
+          amount: rule.amount,
+          status: 'pending' as const,
+        }));
+
+        await supabase.from('fixed_expense_occurrences').insert(newOccs);
+      }
 
       // 5. In-app notification
       await createInAppNotification({

@@ -269,9 +269,10 @@ export function evaluateFinancialSummary(params: {
       return t >= cutoffTime || e.expense_date > cutoffDateStr;
     });
 
-    // Active occurrences: Only occurrences on or after cutoff date
+    // Active occurrences: Only occurrences processed or created after the rollover cutoff
     activeOccurrences = params.occurrences.filter((o) => {
-      return o.occurrence_date >= cutoffDateStr;
+      const occTime = new Date(o.processed_at || o.created_at || o.occurrence_date).getTime();
+      return occTime >= cutoffTime;
     });
   }
 
