@@ -37,6 +37,8 @@ function buildReminderEmailHtml(params) {
   const { slot, recipient, items, dateStr } = params;
   const isMorning = slot === 'morning';
   const isMonthEnd = slot === 'month_end';
+  const isMidWeek = slot === 'mid_week';
+  const isWeekEnd = slot === 'week_end';
 
   let greeting = isMorning ? 'Good morning' : 'Good evening';
   let timeLabel = isMorning ? '8:00 AM Daily Alert' : '6:00 PM Evening Check-In';
@@ -47,7 +49,17 @@ function buildReminderEmailHtml(params) {
     ? 'You have pending daily fixed expenses that require your action. You can Pay or Skip them directly in SmartSpend.'
     : 'Before your day ends, make sure to log your pending recurring expenses so your Safe to Spend balance stays 100% accurate.';
 
-  if (isMonthEnd) {
+  if (isMidWeek) {
+    greeting = 'Hello';
+    timeLabel = '📅 Mid-Week Check-In (Day 3)';
+    title = 'Mid-Week Pending Weekly Expenses Alert';
+    subtext = "You are on Day 3 of your current 7-day budget week. You have an unpaid weekly commitment due this week. Remember to Pay or Skip it in SmartSpend.";
+  } else if (isWeekEnd) {
+    greeting = 'Hello';
+    timeLabel = '⏳ 1 Day Left in Budget Week';
+    title = 'Weekly Budget Week Ending Soon Alert';
+    subtext = "Your current 7-day budget week ends tomorrow. Please make sure to log or pay this week's pending weekly commitments before the new week begins.";
+  } else if (isMonthEnd) {
     greeting = 'Hello';
     timeLabel = '🚨 2 Days Left in Month';
     title = 'Pending Monthly Fixed Expenses Reminder';
@@ -230,6 +242,22 @@ async function getPendingFixedItems(frequencyFilter = null) {
             category: rule.category_name || 'Bills',
           });
         }
+      } else if (rule.frequency === 'weekly') {
+        const ruleStartDate = new Date(rule.start_date);
+        const isDayOfWeek = now.getDay() === ruleStartDate.getDay();
+        const occToday = occurrences.find(
+          (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
+        );
+        // Include if today is the scheduled weekday and not completed/skipped, or has a pending occurrence today
+        if ((isDayOfWeek && (!occToday || occToday.status === 'pending')) || occToday?.status === 'pending') {
+          pendingItems.push({
+            id: rule.id,
+            name: rule.name,
+            amount: Number(rule.amount),
+            frequency: rule.frequency,
+            category: rule.category_name || 'Bills',
+          });
+        }
       } else if (rule.frequency === 'monthly') {
         const occThisMonth = occurrences.find((o) => {
           if (o.fixed_expense_id !== rule.id) return false;
@@ -264,12 +292,71 @@ async function getPendingFixedItems(frequencyFilter = null) {
   }
 }
 
+let lastMidWeekDate = '';
+let lastWeekEndDate = '';
+
+/**
+ * Fetch budget cycle settings from Supabase
+ */
+async function getBudgetCycleInfo() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/budget_settings?select=*&limit=1`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list) && list.length > 0) return list[0];
+    }
+  } catch (e) {
+    console.warn('[Scheduler] Could not fetch budget settings:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Calculate the day number within the 7-day week of the active budget cycle
+ */
+function getCycleWeekProgress(budgetSettings, now = new Date()) {
+  let cycleStartDate = null;
+  const customStart = budgetSettings?.custom_start_date;
+
+  if (budgetSettings?.period_type === 'custom' && customStart) {
+    cycleStartDate = new Date(customStart);
+  } else {
+    const cycleStartDay = Number(budgetSettings?.cycle_start_day) || 1;
+    const currentDay = now.getDate();
+    if (currentDay >= cycleStartDay) {
+      cycleStartDate = new Date(now.getFullYear(), now.getMonth(), cycleStartDay);
+    } else {
+      cycleStartDate = new Date(now.getFullYear(), now.getMonth() - 1, cycleStartDay);
+    }
+  }
+
+  const d1 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const d0 = new Date(cycleStartDate.getFullYear(), cycleStartDate.getMonth(), cycleStartDate.getDate());
+  const diffDays = Math.max(0, Math.floor((d1 - d0) / (1000 * 60 * 60 * 24)));
+  const daysElapsed = diffDays + 1; // 1-indexed (Day 1 = Start of cycle)
+  const dayInWeek = ((daysElapsed - 1) % 7) + 1; // 1 to 7
+
+  return { daysElapsed, dayInWeek };
+}
+
 /**
  * Dispatch reminder email via Resend
  */
 async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_RECIPIENT, isTest = false) {
   const isMonthEnd = slot === 'month_end';
-  let items = await getPendingFixedItems(isMonthEnd ? 'monthly' : null);
+  const isMidWeek = slot === 'mid_week';
+  const isWeekEnd = slot === 'week_end';
+
+  let frequencyFilter = null;
+  if (isMonthEnd) frequencyFilter = 'monthly';
+  if (isMidWeek || isWeekEnd) frequencyFilter = 'weekly';
+
+  let items = await getPendingFixedItems(frequencyFilter);
 
   // If no pending items and it's a routine scheduler run, skip
   if (items.length === 0) {
@@ -280,7 +367,8 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
     // For manual test triggers, generate sample demo items so the test email is always delivered
     items = [
       { id: 'test-1', name: 'Sample Daily Commitment (Milk / Travel)', amount: 10, frequency: 'daily', category: 'Daily' },
-      { id: 'test-2', name: 'Sample Monthly Commitment (WiFi / Rent)', amount: 10, frequency: 'monthly', category: 'Bills' },
+      { id: 'test-2', name: 'Sample Weekly Commitment (Groceries / Gym)', amount: 500, frequency: 'weekly', category: 'Food' },
+      { id: 'test-3', name: 'Sample Monthly Commitment (WiFi / Rent)', amount: 10, frequency: 'monthly', category: 'Bills' },
     ];
   }
 
@@ -293,6 +381,10 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
 
   const subject = isTest
     ? `🔔 [TEST] SmartSpend Reminder Alert (${dateStr})`
+    : isMidWeek
+    ? `📅 SmartSpend Mid-Week Alert: Weekly Fixed Expenses Check-In (${dateStr})`
+    : isWeekEnd
+    ? `⏳ SmartSpend Alert: 1 Day Left in Current Budget Week (${dateStr})`
     : isMonthEnd
     ? `🚨 SmartSpend Reminder: 2 Days Left to Pay Monthly Fixed Expense (${dateStr})`
     : slot === 'morning'
@@ -329,11 +421,11 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
 
 /**
  * Scheduler check running every minute:
- * - 08:00 AM Morning reminder
- * - 09:00 AM Check 2-days before month end
- * - 18:00 (06:00 PM) Evening reminder
+ * - 08:00 AM Morning daily reminder
+ * - 09:00 AM Mid-week (Day 3), Week-End (Day 6), and Month-End (2 days before) checks
+ * - 18:00 (06:00 PM) Evening daily reminder
  */
-function checkScheduledReminders() {
+async function checkScheduledReminders() {
   const now = new Date();
   const hours = now.getHours();
   const minutes = now.getMinutes();
@@ -348,18 +440,49 @@ function checkScheduledReminders() {
     );
   }
 
-  // 2. Month-end 2-day reminder check: 9:00 AM (09:00)
-  if (hours === 9 && minutes === 0 && lastMonthEndDate !== todayDateStr) {
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const currentDay = now.getDate();
-    const daysLeft = lastDayOfMonth - currentDay;
+  // 2. Budget Cycle checks at 9:00 AM (09:00)
+  if (hours === 9 && minutes === 0) {
+    const budgetSettings = await getBudgetCycleInfo();
+    const { dayInWeek } = getCycleWeekProgress(budgetSettings, now);
 
-    if (daysLeft <= 2) {
-      lastMonthEndDate = todayDateStr;
-      console.log(`[Scheduler] 2 days before month end (${daysLeft} days left). Checking pending monthly expenses...`);
-      dispatchReminderEmail('month_end', DEFAULT_RECIPIENT).catch((e) =>
-        console.error('[Scheduler] Month-end reminder error:', e)
+    // Mid-Week Check (Day 3 of current 7-day cycle week)
+    if (dayInWeek === 3 && lastMidWeekDate !== todayDateStr) {
+      lastMidWeekDate = todayDateStr;
+      console.log(`[Scheduler] Mid-week (Day 3) reached for ${todayDateStr}. Checking pending weekly expenses...`);
+      dispatchReminderEmail('mid_week', DEFAULT_RECIPIENT).catch((e) =>
+        console.error('[Scheduler] Mid-week reminder error:', e)
       );
+    }
+
+    // 1-Day-Before-Week-Ends Check (Day 6 of current 7-day cycle week)
+    if (dayInWeek === 6 && lastWeekEndDate !== todayDateStr) {
+      lastWeekEndDate = todayDateStr;
+      console.log(`[Scheduler] Week-Ending (Day 6) reached for ${todayDateStr}. Checking pending weekly expenses...`);
+      dispatchReminderEmail('week_end', DEFAULT_RECIPIENT).catch((e) =>
+        console.error('[Scheduler] Week-end reminder error:', e)
+      );
+    }
+
+    // Month-end 2-day reminder check
+    if (lastMonthEndDate !== todayDateStr) {
+      let daysLeft = 0;
+      if (budgetSettings?.period_type === 'custom' && budgetSettings?.custom_end_date) {
+        const endDate = new Date(budgetSettings.custom_end_date);
+        const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        daysLeft = Math.floor((endDate - todayDate) / (1000 * 60 * 60 * 24));
+      } else {
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const currentDay = now.getDate();
+        daysLeft = lastDayOfMonth - currentDay;
+      }
+
+      if (daysLeft <= 2 && daysLeft >= 0) {
+        lastMonthEndDate = todayDateStr;
+        console.log(`[Scheduler] 2 days before cycle end (${daysLeft} days left). Checking pending monthly expenses...`);
+        dispatchReminderEmail('month_end', DEFAULT_RECIPIENT).catch((e) =>
+          console.error('[Scheduler] Month-end reminder error:', e)
+        );
+      }
     }
   }
 
