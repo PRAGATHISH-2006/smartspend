@@ -231,32 +231,15 @@ export async function triggerMonthCloseStatementEmail(params: {
         if (data.success) {
           return {
             success: true,
-            message: `Statement email dispatched to ${recipientEmail}!`,
+            message: `Month closed successfully! Statement dispatched to ${recipientEmail} with Google Drive link and attached PDF.`,
             reportData,
+            htmlContent: archiveHtml,
           };
         }
       }
     } catch {
       // Continue to next endpoint
     }
-  }
-      body: JSON.stringify({
-        to: recipientEmail,
-        subject: `📁 SmartSpend Closed Month Statement & Drive Archive (${startDate} to ${endDate})`,
-        html: archiveHtml,
-        attachments,
-      }),
-    });
-    if (proxyRes.ok) {
-      return {
-        success: true,
-        message: `Month closed successfully! Statement dispatched to ${recipientEmail} with Google Drive link and attached PDF.`,
-        reportData,
-        htmlContent: archiveHtml,
-      };
-    }
-  } catch (err: any) {
-    console.warn('Error sending month close email:', err);
   }
 
   return {
