@@ -123,16 +123,49 @@ export function calculateUpcomingFixedExpenses(
       const ruleStartDate = parseISO(rule.start_date);
       const targetDayOfWeek = getDay(ruleStartDate);
 
-      // Count occurrences from today to periodEnd
+      // Count calendar occurrences from today to periodEnd
+      let rawCalendarCount = 0;
       for (let i = 0; i < daysRemaining; i++) {
         const checkDate = addDays(currentDate, i);
         if (getDay(checkDate) === targetDayOfWeek) {
           if (i === 0) {
-            if (todayPending) expectedCount++;
+            if (todayPending) rawCalendarCount++;
           } else {
-            expectedCount++;
+            rawCalendarCount++;
           }
         }
+      }
+
+      // In a 1-month budget cycle (periodType === 'monthly', or custom range <= 35 days like 28-32 days):
+      // Monthly budget allocates exactly 4 weeks per month.
+      if (periodType === 'monthly' || (periodType === 'custom' && totalCycleDays <= 35)) {
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth();
+
+        const resolvedCountThisMonth = occurrences.filter((o) => {
+          if (o.fixed_expense_id !== rule.id) return false;
+          if (o.status !== 'completed' && o.status !== 'skipped') return false;
+          const occDate = parseISO(o.occurrence_date);
+          return occDate.getFullYear() === currentYear && occDate.getMonth() === currentMonth;
+        }).length;
+
+        const maxRemainingForMonth = Math.max(0, 4 - resolvedCountThisMonth);
+        expectedCount = Math.min(rawCalendarCount, maxRemainingForMonth);
+      } else if (periodType === 'custom' && totalCycleDays > 35) {
+        // Multi-month custom period: 4 weeks per 30 days
+        const monthCycles = Math.max(1, Math.round(totalCycleDays / 30.4375));
+        const totalBudgetedWeeks = monthCycles * 4;
+        const totalResolvedCount = occurrences.filter((o) => {
+          return (
+            o.fixed_expense_id === rule.id &&
+            (o.status === 'completed' || o.status === 'skipped')
+          );
+        }).length;
+        const maxRemaining = Math.max(0, totalBudgetedWeeks - totalResolvedCount);
+        expectedCount = Math.min(rawCalendarCount, maxRemaining);
+      } else {
+        // Weekly period (7 days)
+        expectedCount = rawCalendarCount;
       }
     } else if (rule.frequency === 'monthly') {
       const ruleStartDate = parseISO(rule.start_date);

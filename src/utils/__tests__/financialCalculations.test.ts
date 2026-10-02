@@ -410,4 +410,58 @@ describe('SmartSpend Financial Accounting Engine', () => {
     expect(summary.upcomingFixedExpenses).toBe(32); // 32 * 1 = 32
     expect(summary.safeToSpend).toBe(968); // 1000 - 32
   });
+
+  // TEST 11: Weekly grocery expense in 32-day custom range evaluates to 4 weeks (4 * 500 = 2000)
+  test('TEST 11: Weekly expense in 32-day custom range evaluates to exactly 4 weeks (2000)', () => {
+    const summary = evaluateFinancialSummary({
+      additions: [
+        {
+          id: '1',
+          user_id: mockUserId,
+          wallet_id: null,
+          amount: 10000,
+          description: 'Salary',
+          added_at: '2026-10-02T10:00:00Z',
+          created_at: '2026-10-02T10:00:00Z',
+        },
+      ],
+      manualExpenses: [],
+      fixedRules: [
+        {
+          id: 'rule-grocery',
+          user_id: mockUserId,
+          name: 'Grocery',
+          amount: 500,
+          category_id: null,
+          category_name: 'Food',
+          frequency: 'weekly',
+          start_date: '2026-10-02', // Friday
+          end_date: null,
+          active: true,
+          created_at: '2026-10-02T00:00:00Z',
+          updated_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      occurrences: [
+        {
+          id: 'occ-grocery-today',
+          fixed_expense_id: 'rule-grocery',
+          user_id: mockUserId,
+          occurrence_date: '2026-10-02',
+          amount: 500,
+          status: 'pending',
+          processed_at: null,
+          created_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      periodType: 'custom',
+      customStartDate: '2026-10-02',
+      customEndDate: '2026-11-02', // 32 days
+      currentDate: new Date(2026, 9, 2),
+    });
+
+    expect(summary.daysRemaining).toBe(32);
+    expect(summary.upcomingFixedExpenses).toBe(2000); // Exactly 4 * 500 = 2000 (NOT 2500)
+    expect(summary.safeToSpend).toBe(8000); // 10000 - 2000
+  });
 });
