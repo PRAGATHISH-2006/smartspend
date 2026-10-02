@@ -277,6 +277,10 @@ export function downloadPdfDocument(filename: string, doc: jsPDF) {
   }
 }
 
+export const DEFAULT_GDRIVE_WEBHOOK_URL =
+  process.env.EXPO_PUBLIC_GOOGLE_DRIVE_WEBHOOK_URL ||
+  'https://script.google.com/macros/s/AKfycbwvX1VHlHlUQvBGfybe04iDpL9euETLyXG3bnK8zYvJplsO_6W-KiHZP3nwOww_utCpTg/exec';
+
 export interface GoogleDriveUploadResult {
   success: boolean;
   message: string;
@@ -296,7 +300,9 @@ export async function uploadPdfToGoogleDrive(params: {
 }): Promise<GoogleDriveUploadResult> {
   const { filename, base64, webhookUrl } = params;
   const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  const targetWebhook = webhookUrl || DEFAULT_GDRIVE_WEBHOOK_URL;
 
+  // 1. Try local proxy server first
   try {
     const res = await fetch('http://localhost:3001/api/upload-to-drive', {
       method: 'POST',
@@ -306,23 +312,64 @@ export async function uploadPdfToGoogleDrive(params: {
       body: JSON.stringify({
         filename,
         base64: cleanBase64,
-        webhookUrl,
+        webhookUrl: targetWebhook,
       }),
     });
 
-    const data = await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        return {
+          success: true,
+          message: data.message || `Successfully uploaded ${filename} to Google Drive!`,
+          fileUrl: data.fileUrl,
+          fileId: data.fileId,
+        };
+      }
+    }
+  } catch (proxyErr) {
+    console.warn('[Google Drive] Proxy unavailable, uploading directly to Google Apps Script:', proxyErr);
+  }
+
+  // 2. Direct upload fallback to Google Apps Script Webhook
+  try {
+    console.log('[Google Drive] Uploading directly to Google Apps Script Webhook...');
+    const gResponse = await fetch(targetWebhook, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        filename: filename || 'Transactions.pdf',
+        base64: cleanBase64,
+        folderId: '1AJzY39IKyCTR0d7HspLN0bMk609kITT2',
+      }),
+      redirect: 'follow',
+    });
+
+    const gText = await gResponse.text();
+    let gData: any = {};
+    try {
+      gData = JSON.parse(gText);
+    } catch {
+      gData = { raw: gText };
+    }
+
+    const isOk = gResponse.ok && gData.status !== 'error';
     return {
-      success: !!data.success,
-      message: data.message || (data.success ? 'Uploaded to Google Drive!' : data.error),
-      fileUrl: data.fileUrl,
-      fileId: data.fileId,
-      needsWebhookUrl: data.needsWebhookUrl,
-      error: data.error,
+      success: isOk,
+      message: isOk
+        ? `Successfully uploaded ${filename} to Google Drive!`
+        : gData.message || 'Google Drive upload failed',
+      fileUrl: gData.url || gData.fileUrl,
+      fileId: gData.fileId || gData.id,
+      error: isOk ? undefined : gData.message,
     };
   } catch (err: any) {
+    console.warn('[Google Drive] Direct upload error:', err);
     return {
       success: false,
-      message: 'Could not connect to upload proxy',
+      message: 'Failed to upload to Google Drive',
       error: err.message || String(err),
     };
   }

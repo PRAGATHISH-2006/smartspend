@@ -133,34 +133,53 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     rules: FixedExpenseRow[],
     existingOccurrences: FixedExpenseOccurrenceRow[]
   ) => {
-    const todayStr = getTodayDateString();
+    const today = new Date();
+    const todayStr = getTodayDateString(today);
     const activeRules = rules.filter((r) => r.active && r.start_date <= todayStr);
     const missingRules: FixedExpenseRow[] = [];
 
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed (0 = Jan, 9 = Oct)
+
     for (const rule of activeRules) {
-      const alreadyHas = existingOccurrences.some(
-        (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
-      );
-
-      if (!alreadyHas) {
-        // Evaluate frequency condition for today
-        let isDueToday = false;
-        const targetDate = new Date();
-        const ruleStartDate = new Date(rule.start_date);
-
-        if (rule.frequency === 'daily') {
-          isDueToday = true;
-        } else if (rule.frequency === 'weekly') {
-          isDueToday = targetDate.getDay() === ruleStartDate.getDay();
-        } else if (rule.frequency === 'monthly') {
-          isDueToday = targetDate.getDate() === ruleStartDate.getDate();
-        } else if (rule.frequency === 'yearly') {
-          isDueToday =
-            targetDate.getMonth() === ruleStartDate.getMonth() &&
-            targetDate.getDate() === ruleStartDate.getDate();
+      if (rule.frequency === 'daily') {
+        // Daily: Check if occurrence exists for today's exact date
+        const hasToday = existingOccurrences.some(
+          (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
+        );
+        if (!hasToday) {
+          missingRules.push(rule);
         }
+      } else if (rule.frequency === 'weekly') {
+        // Weekly: Check if occurrence exists for today when day of week matches
+        const ruleStartDate = parseISO(rule.start_date);
+        const isDayOfWeek = today.getDay() === ruleStartDate.getDay();
+        const hasToday = existingOccurrences.some(
+          (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
+        );
+        if (isDayOfWeek && !hasToday) {
+          missingRules.push(rule);
+        }
+      } else if (rule.frequency === 'monthly') {
+        // Monthly: Prompt once per calendar month / billing cycle
+        const hasThisMonth = existingOccurrences.some((o) => {
+          if (o.fixed_expense_id !== rule.id) return false;
+          const occDate = parseISO(o.occurrence_date);
+          return occDate.getFullYear() === currentYear && occDate.getMonth() === currentMonth;
+        });
 
-        if (isDueToday) {
+        if (!hasThisMonth) {
+          missingRules.push(rule);
+        }
+      } else if (rule.frequency === 'yearly') {
+        // Yearly: Prompt once per 12-month calendar year
+        const hasThisYear = existingOccurrences.some((o) => {
+          if (o.fixed_expense_id !== rule.id) return false;
+          const occDate = parseISO(o.occurrence_date);
+          return occDate.getFullYear() === currentYear;
+        });
+
+        if (!hasThisYear) {
           missingRules.push(rule);
         }
       }
@@ -318,10 +337,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     lowBalanceThreshold: Number(budgetSettings?.low_balance_threshold ?? 2000),
   });
 
-  // Today's occurrences mapped with fixed expense rule details
+  // Today's occurrences & pending cycle occurrences mapped with fixed expense rule details
   const todayStr = getTodayDateString();
   const todayFixedExpenses: TodayFixedExpenseItem[] = occurrences
-    .filter((o) => o.occurrence_date === todayStr)
+    .filter((o) => {
+      if (o.occurrence_date === todayStr) return true;
+      if (o.status === 'pending') return true; // Keep all pending items visible so user can Pay/Skip
+      return false;
+    })
     .map((o) => {
       const rule = fixedExpenses.find((r) => r.id === o.fixed_expense_id);
       return {
@@ -874,15 +897,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Attempt automated background upload to Google Drive right away
         try {
           const savedWebhook = (await AsyncStorage.getItem('gdrive_webhook_url')) || undefined;
-          if (savedWebhook) {
-            const driveRes = await uploadPdfToGoogleDrive({
-              filename: pdfResult.filename,
-              base64: pdfResult.base64,
-              webhookUrl: savedWebhook,
-            });
-            driveUploadSuccess = !!driveRes.success;
-            console.log('[Drive Auto-Upload Result]', driveRes);
-          }
+          const driveRes = await uploadPdfToGoogleDrive({
+            filename: pdfResult.filename,
+            base64: pdfResult.base64,
+            webhookUrl: savedWebhook,
+          });
+          driveUploadSuccess = !!driveRes.success;
+          console.log('[Drive Auto-Upload Result]', driveRes);
         } catch (upErr) {
           console.warn('Auto drive upload error:', upErr);
         }

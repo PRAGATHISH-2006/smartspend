@@ -620,13 +620,33 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                   </View>
                 )}
 
+                {/* Compulsory Settlement Notice */}
+                {pendingFixedExpenses.length > 0 && (
+                  <View style={styles.compulsoryBanner}>
+                    <AlertTriangle size={18} color="#B45309" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.compulsoryBannerTitle}>Action Required Before Closing</Text>
+                      <Text style={styles.compulsoryBannerText}>
+                        You have {pendingFixedExpenses.length} pending recurring expense{pendingFixedExpenses.length > 1 ? 's' : ''}. Please click <Text style={{ fontWeight: '700' }}>Pay</Text> or <Text style={{ fontWeight: '700' }}>Skip</Text> for each item above before you can close this month.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Action Buttons */}
                 <View style={styles.actionRow}>
                   <Button
-                    title={loading ? 'Closing Month & Archiving...' : 'Confirm & Close This Month'}
+                    title={
+                      loading
+                        ? 'Closing Month & Archiving...'
+                        : pendingFixedExpenses.length > 0
+                        ? `Settle ${pendingFixedExpenses.length} Pending Item${pendingFixedExpenses.length > 1 ? 's' : ''} to Close Month`
+                        : 'Confirm & Close This Month'
+                    }
                     onPress={handleCloseMonth}
                     loading={loading}
-                    variant="primary"
+                    disabled={pendingFixedExpenses.length > 0 || loading}
+                    variant={pendingFixedExpenses.length > 0 ? 'secondary' : 'primary'}
                     icon={<ShieldCheck size={16} color="#FFF" />}
                     style={styles.confirmBtn}
                   />
@@ -1198,5 +1218,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#38BDF8',
     lineHeight: 14,
+  },
+  compulsoryBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    borderRadius: THEME.borderRadius.lg,
+    padding: 12,
+    marginBottom: THEME.spacing.md,
+  },
+  compulsoryBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  compulsoryBannerText: {
+    fontSize: 11,
+    color: '#78350F',
+    lineHeight: 16,
   },
 });

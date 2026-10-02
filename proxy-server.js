@@ -1,4 +1,4 @@
-// Local CORS Proxy Server & Automated Daily Fixed Expense Reminder Scheduler
+// Local CORS Proxy Server & Automated Daily & Month-End Fixed Expense Reminder Scheduler
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -28,6 +28,7 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGci
 // Tracking state for reminders so they fire once per time slot
 let lastMorningDate = '';
 let lastEveningDate = '';
+let lastMonthEndDate = '';
 
 /**
  * Generate a responsive HTML email for morning & evening fixed expense reminders
@@ -35,23 +36,32 @@ let lastEveningDate = '';
 function buildReminderEmailHtml(params) {
   const { slot, recipient, items, dateStr } = params;
   const isMorning = slot === 'morning';
-  const greeting = isMorning ? 'Good morning' : 'Good evening';
-  const timeLabel = isMorning ? '8:00 AM Morning Reminder' : '6:00 PM Evening Check-In';
-  const title = isMorning
-    ? "Today's Fixed Expenses Reminder"
-    : "Don't Forget to Mark Today's Expenses!";
-  const subtext = isMorning
-    ? 'Here is your recurring expense checklist for today. You can Pay, Adjust amount (e.g. ₹15 for partial travel), or Skip directly in the app.'
-    : 'Before your day ends, make sure to log your completed or skipped recurring expenses so your Safe to Spend remains 100% accurate.';
+  const isMonthEnd = slot === 'month_end';
+
+  let greeting = isMorning ? 'Good morning' : 'Good evening';
+  let timeLabel = isMorning ? '8:00 AM Daily Alert' : '6:00 PM Evening Check-In';
+  let title = isMorning
+    ? "Today's Pending Fixed Expenses"
+    : "Don't Forget to Mark Today's Fixed Expenses!";
+  let subtext = isMorning
+    ? 'You have pending daily fixed expenses that require your action. You can Pay or Skip them directly in SmartSpend.'
+    : 'Before your day ends, make sure to log your pending recurring expenses so your Safe to Spend balance stays 100% accurate.';
+
+  if (isMonthEnd) {
+    greeting = 'Hello';
+    timeLabel = '🚨 2 Days Left in Month';
+    title = 'Pending Monthly Fixed Expenses Reminder';
+    subtext = 'Your monthly financial cycle is ending in 2 days. You have unpaid monthly fixed expenses that must be Paid or Skipped before closing the month.';
+  }
 
   const totalAmount = items.reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   const itemsHtml = items.length === 0
-    ? `<tr><td colspan="3" style="padding: 16px; text-align: center; color: #64748b; font-style: italic;">No pending recurring expenses recorded for today.</td></tr>`
+    ? `<tr><td colspan="3" style="padding: 16px; text-align: center; color: #64748b; font-style: italic;">No pending recurring expenses at this time.</td></tr>`
     : items.map((i) => `
       <tr>
         <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a;">${i.name}</td>
-        <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #64748b;">${i.frequency || 'Daily'}</td>
+        <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #64748b; text-transform: capitalize;">${i.frequency || 'Daily'}</td>
         <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #059669; text-align: right;">₹${Number(i.amount).toLocaleString('en-IN')}</td>
       </tr>
     `).join('');
@@ -62,7 +72,7 @@ function buildReminderEmailHtml(params) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartSpend Daily Reminder</title>
+  <title>SmartSpend Reminder</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 10px;">
@@ -71,17 +81,17 @@ function buildReminderEmailHtml(params) {
         <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
           <!-- Header -->
           <tr>
-            <td style="background-color: #0f172a; padding: 32px 28px; text-align: left;">
+            <td style="background-color: ${isMonthEnd ? '#991b1b' : '#0f172a'}; padding: 32px 28px; text-align: left;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
-                    <span style="display: inline-block; background-color: rgba(5, 150, 105, 0.2); color: #34d399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px;">
-                      ⏰ ${timeLabel}
+                    <span style="display: inline-block; background-color: rgba(255, 255, 255, 0.2); color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.5px;">
+                      ${timeLabel}
                     </span>
-                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 12px 0 6px 0; letter-spacing: -0.5px;">
+                    <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 12px 0 6px 0; letter-spacing: -0.5px;">
                       ${title}
                     </h1>
-                    <p style="color: #94a3b8; font-size: 14px; margin: 0;">
+                    <p style="color: #cbd5e1; font-size: 13px; margin: 0;">
                       ${dateStr} • Prepared for ${recipient}
                     </p>
                   </td>
@@ -107,12 +117,12 @@ function buildReminderEmailHtml(params) {
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td>
-                          <span style="font-size: 12px; font-weight: 600; color: #065f46; text-transform: uppercase;">Total Due Today</span>
+                          <span style="font-size: 12px; font-weight: 600; color: #065f46; text-transform: uppercase;">Total Pending Amount</span>
                           <div style="font-size: 24px; font-weight: 800; color: #047857; margin-top: 4px;">₹${totalAmount.toLocaleString('en-IN')}</div>
                         </td>
                         <td align="right">
                           <span style="display: inline-block; background-color: #059669; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px;">
-                            ${items.length} Due Item${items.length === 1 ? '' : 's'}
+                            ${items.length} Pending Item${items.length === 1 ? '' : 's'}
                           </span>
                         </td>
                       </tr>
@@ -131,26 +141,12 @@ function buildReminderEmailHtml(params) {
                 ${itemsHtml}
               </table>
 
-              <!-- New Feature Tip Box -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 10px; margin-bottom: 28px;">
-                <tr>
-                  <td style="padding: 14px 18px;">
-                    <div style="font-size: 13px; font-weight: 700; color: #854d0e; margin-bottom: 4px;">
-                      💡 Pro Tip: Need to pay a partial amount?
-                    </div>
-                    <div style="font-size: 12px; color: #713f12; line-height: 1.5;">
-                      If your morning travel cost only ₹15 instead of ₹40, click the new <strong>Edit</strong> button in SmartSpend to log exactly ₹15 so your Safe to Spend stays accurate!
-                    </div>
-                  </td>
-                </tr>
-              </table>
-
               <!-- Action Button -->
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center">
                     <a href="http://localhost:8081" style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 700; padding: 14px 32px; border-radius: 10px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
-                      Open SmartSpend & Mark Expenses →
+                      Open SmartSpend & Pay / Skip Now →
                     </a>
                   </td>
                 </tr>
@@ -165,7 +161,7 @@ function buildReminderEmailHtml(params) {
                 SmartSpend • Intelligent Mobile Financial Engine
               </p>
               <p style="font-size: 11px; color: #cbd5e1; margin: 0;">
-                Scheduled automated reminders at 8:00 AM & 6:00 PM
+                Daily reminder at 8:00 AM & 6:00 PM | Month-End Alert (2 days before close)
               </p>
             </td>
           </tr>
@@ -179,44 +175,108 @@ function buildReminderEmailHtml(params) {
 }
 
 /**
- * Fetch active fixed expenses for the user from Supabase
+ * Fetch pending fixed expenses from Supabase
  */
-async function getTodayFixedItems() {
+async function getPendingFixedItems(frequencyFilter = null) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/fixed_expenses?active=eq.true&select=*`, {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // 1. Fetch active rules
+    let rulesUrl = `${SUPABASE_URL}/rest/v1/fixed_expenses?active=eq.true&select=*`;
+    if (frequencyFilter) {
+      rulesUrl += `&frequency=eq.${frequencyFilter}`;
+    }
+
+    const rulesRes = await fetch(rulesUrl, {
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data.map((d) => ({
-          name: d.name,
-          amount: Number(d.amount),
-          frequency: d.frequency,
-          category: d.category_name || 'Bills',
-        }));
+    if (!rulesRes.ok) return [];
+    const rules = await rulesRes.json();
+    if (!Array.isArray(rules) || rules.length === 0) return [];
+
+    // 2. Fetch occurrences
+    const occRes = await fetch(`${SUPABASE_URL}/rest/v1/fixed_expense_occurrences?select=*`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+
+    const occurrences = occRes.ok ? await occRes.json() : [];
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // 3. Filter only items that are pending (not completed and not skipped)
+    const pendingItems = [];
+
+    for (const rule of rules) {
+      if (rule.frequency === 'daily') {
+        const occToday = occurrences.find(
+          (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
+        );
+        // If not completed and not skipped today
+        if (!occToday || occToday.status === 'pending') {
+          pendingItems.push({
+            id: rule.id,
+            name: rule.name,
+            amount: Number(rule.amount),
+            frequency: rule.frequency,
+            category: rule.category_name || 'Bills',
+          });
+        }
+      } else if (rule.frequency === 'monthly') {
+        const occThisMonth = occurrences.find((o) => {
+          if (o.fixed_expense_id !== rule.id) return false;
+          const occD = new Date(o.occurrence_date);
+          return occD.getFullYear() === currentYear && occD.getMonth() === currentMonth;
+        });
+
+        if (!occThisMonth || occThisMonth.status === 'pending') {
+          pendingItems.push({
+            id: rule.id,
+            name: rule.name,
+            amount: Number(rule.amount),
+            frequency: rule.frequency,
+            category: rule.category_name || 'Bills',
+          });
+        }
+      } else {
+        pendingItems.push({
+          id: rule.id,
+          name: rule.name,
+          amount: Number(rule.amount),
+          frequency: rule.frequency,
+          category: rule.category_name || 'Bills',
+        });
       }
     }
-  } catch (err) {
-    console.warn('[Reminder] Error fetching fixed rules from Supabase:', err.message);
-  }
 
-  // Fallback defaults for demonstration if database is empty
-  return [
-    { name: 'Daily Travel / Metro', amount: 40, frequency: 'daily', category: 'Transport' },
-    { name: 'Daily Milk / Groceries', amount: 30, frequency: 'daily', category: 'Food' },
-  ];
+    return pendingItems;
+  } catch (err) {
+    console.warn('[Reminder] Error querying pending items:', err.message);
+    return [];
+  }
 }
 
 /**
  * Dispatch reminder email via Resend
  */
 async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_RECIPIENT) {
-  const items = await getTodayFixedItems();
+  const isMonthEnd = slot === 'month_end';
+  const items = await getPendingFixedItems(isMonthEnd ? 'monthly' : null);
+
+  // If no pending items and it's a routine scheduler run, we can log and return
+  if (items.length === 0) {
+    console.log(`[Reminder] No pending fixed expenses for ${slot}. Skipping email.`);
+    return { ok: true, data: { message: 'No pending items to alert' } };
+  }
+
   const dateStr = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -224,9 +284,11 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
     year: 'numeric',
   });
 
-  const subject = slot === 'morning'
-    ? `⏰ SmartSpend Morning Reminder: Today's Fixed Expenses (${dateStr})`
-    : `⏰ SmartSpend Evening Reminder: Don't forget to mark today's expenses!`;
+  const subject = isMonthEnd
+    ? `🚨 SmartSpend Reminder: 2 Days Left to Pay Monthly Fixed Expense (${dateStr})`
+    : slot === 'morning'
+    ? `⏰ SmartSpend Morning Reminder: Today's Pending Fixed Expenses (${dateStr})`
+    : `⏰ SmartSpend Evening Reminder: Don't forget to mark today's fixed expenses!`;
 
   const html = buildReminderEmailHtml({
     slot,
@@ -235,7 +297,7 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
     dateStr,
   });
 
-  console.log(`[Reminder] Dispatching ${slot} reminder to ${targetEmail}...`);
+  console.log(`[Reminder] Dispatching ${slot} reminder to ${targetEmail} (${items.length} items)...`);
 
   const resendRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -259,6 +321,7 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
 /**
  * Scheduler check running every minute:
  * - 08:00 AM Morning reminder
+ * - 09:00 AM Check 2-days before month end
  * - 18:00 (06:00 PM) Evening reminder
  */
 function checkScheduledReminders() {
@@ -267,16 +330,31 @@ function checkScheduledReminders() {
   const minutes = now.getMinutes();
   const todayDateStr = now.toISOString().split('T')[0];
 
-  // Morning reminder: 8:00 AM (08:00)
+  // 1. Morning daily reminder: 8:00 AM (08:00)
   if (hours === 8 && minutes === 0 && lastMorningDate !== todayDateStr) {
     lastMorningDate = todayDateStr;
-    console.log(`[Scheduler] 8:00 AM reached. Firing morning reminder for ${todayDateStr}`);
+    console.log(`[Scheduler] 8:00 AM reached. Firing daily reminder for ${todayDateStr}`);
     dispatchReminderEmail('morning', DEFAULT_RECIPIENT).catch((e) =>
       console.error('[Scheduler] Morning reminder error:', e)
     );
   }
 
-  // Evening reminder: 6:00 PM (18:00)
+  // 2. Month-end 2-day reminder check: 9:00 AM (09:00)
+  if (hours === 9 && minutes === 0 && lastMonthEndDate !== todayDateStr) {
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const currentDay = now.getDate();
+    const daysLeft = lastDayOfMonth - currentDay;
+
+    if (daysLeft <= 2) {
+      lastMonthEndDate = todayDateStr;
+      console.log(`[Scheduler] 2 days before month end (${daysLeft} days left). Checking pending monthly expenses...`);
+      dispatchReminderEmail('month_end', DEFAULT_RECIPIENT).catch((e) =>
+        console.error('[Scheduler] Month-end reminder error:', e)
+      );
+    }
+  }
+
+  // 3. Evening daily reminder: 6:00 PM (18:00)
   if (hours === 18 && minutes === 0 && lastEveningDate !== todayDateStr) {
     lastEveningDate = todayDateStr;
     console.log(`[Scheduler] 6:00 PM reached. Firing evening reminder for ${todayDateStr}`);
@@ -385,7 +463,7 @@ const server = http.createServer(async (req, res) => {
             deliveredTo: to,
             id: result.data?.id || null,
             message: result.ok
-              ? `${slot === 'morning' ? 'Morning (8:00 AM)' : 'Evening (6:00 PM)'} reminder email sent to ${to}!`
+              ? `Reminder email (${slot}) sent to ${to}!`
               : result.data?.message || 'Failed to dispatch reminder',
             data: result.data,
           })
@@ -413,7 +491,8 @@ const server = http.createServer(async (req, res) => {
         const targetWebhookUrl =
           webhookUrl ||
           process.env.GOOGLE_DRIVE_WEBHOOK_URL ||
-          process.env.EXPO_PUBLIC_GOOGLE_DRIVE_WEBHOOK_URL;
+          process.env.EXPO_PUBLIC_GOOGLE_DRIVE_WEBHOOK_URL ||
+          'https://script.google.com/macros/s/AKfycbwvX1VHlHlUQvBGfybe04iDpL9euETLyXG3bnK8zYvJplsO_6W-KiHZP3nwOww_utCpTg/exec';
 
         // Save local backup file as well
         if (filename && base64) {
@@ -426,21 +505,6 @@ const server = http.createServer(async (req, res) => {
           } catch (writeErr) {
             console.warn('[Drive Upload] Error saving local PDF:', writeErr);
           }
-        }
-
-        if (!targetWebhookUrl) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              success: false,
-              needsWebhookUrl: true,
-              filename: filename || 'Transactions.pdf',
-              driveFolderUrl: 'https://drive.google.com/drive/folders/1AJzY39IKyCTR0d7HspLN0bMk609kITT2?usp=sharing',
-              message:
-                'PDF generated! To automatically push directly into folder 1AJzY39IKyCTR0d7HspLN0bMk609kITT2, please enter your Google Apps Script Web App URL.',
-            })
-          );
-          return;
         }
 
         // Post base64 PDF payload to the Google Apps Script Web App
@@ -504,11 +568,13 @@ const server = http.createServer(async (req, res) => {
         proxy: 'smartspend-email-proxy',
         currentTime: now.toLocaleTimeString(),
         scheduler: {
-          morningReminder: '08:00 AM',
-          eveningReminder: '06:00 PM',
+          morningReminder: '08:00 AM (Daily Pending Alerts)',
+          monthEndReminder: '09:00 AM (2 Days Before Month End Alert)',
+          eveningReminder: '06:00 PM (Daily Pending Alerts)',
           recipient: DEFAULT_RECIPIENT,
           lastMorningDate,
           lastEveningDate,
+          lastMonthEndDate,
         },
       })
     );
@@ -522,4 +588,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`[Email Proxy] Server running on http://localhost:${PORT}`);
   console.log(`[Scheduler] Daily reminders active for 8:00 AM & 6:00 PM -> ${DEFAULT_RECIPIENT}`);
+  console.log(`[Scheduler] Month-end reminder active 2 days before close -> ${DEFAULT_RECIPIENT}`);
 });
