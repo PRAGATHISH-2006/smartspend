@@ -301,4 +301,113 @@ describe('SmartSpend Financial Accounting Engine', () => {
     expect(summary.isLowBalance).toBe(true); // 600 <= 2000
     expect(summary.isFixedExpenseWarning).toBe(true); // 500 > 600 * 0.7 (420)
   });
+
+  // TEST 9: Monthly fixed expense in 32-day custom range must not double (6000 rent -> exactly 6000)
+  test('TEST 9: Monthly fixed expense in 32-day custom date range evaluates to single month amount', () => {
+    const summary = evaluateFinancialSummary({
+      additions: [
+        {
+          id: '1',
+          user_id: mockUserId,
+          wallet_id: null,
+          amount: 20000,
+          description: 'Monthly Salary',
+          added_at: '2026-10-02T10:00:00Z',
+          created_at: '2026-10-02T10:00:00Z',
+        },
+      ],
+      manualExpenses: [],
+      fixedRules: [
+        {
+          id: 'rule-rent',
+          user_id: mockUserId,
+          name: 'House Rent',
+          amount: 6000,
+          category_id: null,
+          category_name: 'Rent',
+          frequency: 'monthly',
+          start_date: '2026-10-02',
+          end_date: null,
+          active: true,
+          created_at: '2026-10-02T00:00:00Z',
+          updated_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      occurrences: [
+        {
+          id: 'occ-rent-today',
+          fixed_expense_id: 'rule-rent',
+          user_id: mockUserId,
+          occurrence_date: '2026-10-02',
+          amount: 6000,
+          status: 'pending',
+          processed_at: null,
+          created_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      periodType: 'custom',
+      customStartDate: '2026-10-02',
+      customEndDate: '2026-11-02', // 32 days
+      currentDate: new Date(2026, 9, 2), // 2 Oct 2026
+    });
+
+    expect(summary.daysRemaining).toBe(32);
+    expect(summary.currentBalance).toBe(20000);
+    expect(summary.upcomingFixedExpenses).toBe(6000); // Exactly 6,000, NOT 12,000!
+    expect(summary.safeToSpend).toBe(14000); // 20000 - 6000
+  });
+
+  // TEST 10: Daily fixed expense in 32-day custom range is 32 * amount
+  test('TEST 10: Daily fixed expense in 32-day custom range evaluates to 32 * amount', () => {
+    const summary = evaluateFinancialSummary({
+      additions: [
+        {
+          id: '1',
+          user_id: mockUserId,
+          wallet_id: null,
+          amount: 1000,
+          description: 'Top-up',
+          added_at: '2026-10-02T10:00:00Z',
+          created_at: '2026-10-02T10:00:00Z',
+        },
+      ],
+      manualExpenses: [],
+      fixedRules: [
+        {
+          id: 'rule-daily-1',
+          user_id: mockUserId,
+          name: 'Daily 1 Re',
+          amount: 1,
+          category_id: null,
+          category_name: 'Bills',
+          frequency: 'daily',
+          start_date: '2026-10-02',
+          end_date: null,
+          active: true,
+          created_at: '2026-10-02T00:00:00Z',
+          updated_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      occurrences: [
+        {
+          id: 'occ-daily-1',
+          fixed_expense_id: 'rule-daily-1',
+          user_id: mockUserId,
+          occurrence_date: '2026-10-02',
+          amount: 1,
+          status: 'pending',
+          processed_at: null,
+          created_at: '2026-10-02T00:00:00Z',
+        },
+      ],
+      periodType: 'custom',
+      customStartDate: '2026-10-02',
+      customEndDate: '2026-11-02', // 32 days
+      currentDate: new Date(2026, 9, 2),
+    });
+
+    expect(summary.daysRemaining).toBe(32);
+    expect(summary.upcomingFixedExpenses).toBe(32); // 32 * 1 = 32
+    expect(summary.safeToSpend).toBe(968); // 1000 - 32
+  });
 });

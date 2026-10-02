@@ -8,7 +8,7 @@ import {
 } from '../types/database';
 import { FinancialSummary, FixedExpenseForecastItem } from '../types/financial';
 import { getDaysRemainingInPeriod, getTodayDateString } from './dateUtils';
-import { differenceInCalendarDays, parseISO, addDays, getDay, getDate, getMonth } from 'date-fns';
+import { differenceInCalendarDays, parseISO, addDays, addMonths, getDay, getDate, getMonth } from 'date-fns';
 
 /**
  * Calculate the total money added across all top-up transactions
@@ -83,7 +83,7 @@ export function calculateUpcomingFixedExpenses(
   forecastItems: FixedExpenseForecastItem[];
 } {
   const todayStr = getTodayDateString(currentDate);
-  const { daysRemaining, periodEnd } = getDaysRemainingInPeriod(
+  const { daysRemaining, periodEnd, totalCycleDays } = getDaysRemainingInPeriod(
     periodType,
     currentDate,
     cycleStartDay,
@@ -136,23 +136,60 @@ export function calculateUpcomingFixedExpenses(
       }
     } else if (rule.frequency === 'monthly') {
       const ruleStartDate = parseISO(rule.start_date);
+      const ruleEndDate = rule.end_date ? parseISO(rule.end_date) : null;
       const targetDayOfMonth = getDate(ruleStartDate);
 
-      for (let i = 0; i < daysRemaining; i++) {
-        const checkDate = addDays(currentDate, i);
-        if (getDate(checkDate) === targetDayOfMonth) {
-          if (i === 0) {
-            if (todayPending) expectedCount++;
-          } else {
-            // Check if not already occurred this month
-            const occThisMonth = occurrences.find(
-              (o) =>
-                o.fixed_expense_id === rule.id &&
-                getMonth(parseISO(o.occurrence_date)) === getMonth(checkDate) &&
-                (o.status === 'completed' || o.status === 'skipped')
-            );
-            if (!occThisMonth) expectedCount++;
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth();
+
+      // Check if this rule has already been paid or skipped in the active cycle for current calendar month
+      const hasResolvedThisMonth = occurrences.some((o) => {
+        if (o.fixed_expense_id !== rule.id) return false;
+        if (o.status !== 'completed' && o.status !== 'skipped') return false;
+        const occDate = parseISO(o.occurrence_date);
+        return occDate.getFullYear() === currentYear && occDate.getMonth() === currentMonth;
+      });
+
+      // Is the monthly expense active and eligible in the current month / period?
+      const isEligibleThisMonth =
+        ruleStartDate <= periodEnd &&
+        (!ruleEndDate || ruleEndDate >= currentDate);
+
+      let currentMonthCount = 0;
+      if (isEligibleThisMonth) {
+        currentMonthCount = hasResolvedThisMonth ? 0 : 1;
+      }
+
+      // If period is monthly, weekly, or a standard 1-month custom cycle (<= 35 days),
+      // there is exactly 1 monthly cycle (max 1 occurrence)
+      if (periodType === 'monthly' || periodType === 'weekly' || totalCycleDays <= 35) {
+        expectedCount = currentMonthCount;
+      } else {
+        // Multi-month custom period (> 35 days): evaluate current month + future distinct months
+        expectedCount = currentMonthCount;
+        let nextCheck = addMonths(currentDate, 1);
+        while (nextCheck <= periodEnd) {
+          const nextYear = nextCheck.getFullYear();
+          const nextMonth = nextCheck.getMonth();
+          const dueDateInNextMonth = new Date(nextYear, nextMonth, targetDayOfMonth);
+
+          const isNextEligible =
+            dueDateInNextMonth >= ruleStartDate &&
+            (!ruleEndDate || dueDateInNextMonth <= ruleEndDate) &&
+            dueDateInNextMonth <= periodEnd;
+
+          if (isNextEligible) {
+            const hasResolvedNext = occurrences.some((o) => {
+              if (o.fixed_expense_id !== rule.id) return false;
+              if (o.status !== 'completed' && o.status !== 'skipped') return false;
+              const occDate = parseISO(o.occurrence_date);
+              return occDate.getFullYear() === nextYear && occDate.getMonth() === nextMonth;
+            });
+            if (!hasResolvedNext) {
+              expectedCount++;
+            }
           }
+          nextCheck = addMonths(nextCheck, 1);
         }
       }
     } else if (rule.frequency === 'yearly') {
@@ -163,8 +200,16 @@ export function calculateUpcomingFixedExpenses(
       for (let i = 0; i < daysRemaining; i++) {
         const checkDate = addDays(currentDate, i);
         if (getMonth(checkDate) === targetMonth && getDate(checkDate) === targetDayOfMonth) {
-          if (i === 0 ? todayPending : true) {
-            expectedCount++;
+          if (i === 0) {
+            if (todayPending) expectedCount++;
+          } else {
+            const occThisYear = occurrences.some(
+              (o) =>
+                o.fixed_expense_id === rule.id &&
+                parseISO(o.occurrence_date).getFullYear() === checkDate.getFullYear() &&
+                (o.status === 'completed' || o.status === 'skipped')
+            );
+            if (!occThisYear) expectedCount++;
           }
         }
       }

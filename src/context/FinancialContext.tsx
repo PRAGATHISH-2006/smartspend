@@ -70,7 +70,20 @@ interface FinancialContextType {
   }) => Promise<{ error: Error | null }>;
   updateFixedExpense: (
     id: string,
-    updates: Partial<FixedExpenseRow>
+    updates: Partial<FixedExpenseRow> | {
+      name?: string;
+      amount?: number;
+      categoryId?: string | null;
+      categoryName?: string;
+      category_id?: string | null;
+      category_name?: string;
+      frequency?: FrequencyType;
+      startDate?: string;
+      start_date?: string;
+      endDate?: string | null;
+      end_date?: string | null;
+      active?: boolean;
+    }
   ) => Promise<{ error: Error | null }>;
   deleteFixedExpense: (id: string) => Promise<{ error: Error | null }>;
   toggleFixedExpenseActive: (id: string, active: boolean) => Promise<{ error: Error | null }>;
@@ -594,20 +607,78 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  const updateFixedExpense = async (id: string, updates: Partial<FixedExpenseRow>) => {
+  const updateFixedExpense = async (
+    id: string,
+    updates: Partial<FixedExpenseRow> | {
+      name?: string;
+      amount?: number;
+      categoryId?: string | null;
+      categoryName?: string;
+      category_id?: string | null;
+      category_name?: string;
+      frequency?: FrequencyType;
+      startDate?: string;
+      start_date?: string;
+      endDate?: string | null;
+      end_date?: string | null;
+      active?: boolean;
+    }
+  ) => {
     try {
+      const dbPayload: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (updates.name !== undefined) dbPayload.name = String(updates.name).trim();
+      if (updates.amount !== undefined) dbPayload.amount = Number(updates.amount);
+      if ('categoryId' in updates || 'category_id' in updates) {
+        dbPayload.category_id = (updates as any).category_id ?? (updates as any).categoryId ?? null;
+      }
+      if ('categoryName' in updates || 'category_name' in updates) {
+        dbPayload.category_name = (updates as any).category_name ?? (updates as any).categoryName ?? 'Bills';
+      }
+      if (updates.frequency !== undefined) dbPayload.frequency = updates.frequency;
+      if ('startDate' in updates || 'start_date' in updates) {
+        dbPayload.start_date = (updates as any).start_date ?? (updates as any).startDate;
+      }
+      if ('endDate' in updates || 'end_date' in updates) {
+        dbPayload.end_date = (updates as any).end_date ?? (updates as any).endDate ?? null;
+      }
+      if (updates.active !== undefined) dbPayload.active = updates.active;
+
       const { data, error } = await supabase
         .from('fixed_expenses')
-        .update(updates)
+        .update(dbPayload)
         .eq('id', id)
         .select('*')
         .single();
 
       if (error) throw error;
 
+      const updatedRule = data as FixedExpenseRow;
+
       setFixedExpenses((prev) =>
-        prev.map((item) => (item.id === id ? (data as FixedExpenseRow) : item))
+        prev.map((item) => (item.id === id ? updatedRule : item))
       );
+
+      // If amount was modified, keep today's pending occurrence in sync
+      if (updates.amount !== undefined) {
+        const newAmt = Number(updates.amount);
+        await supabase
+          .from('fixed_expense_occurrences')
+          .update({ amount: newAmt })
+          .eq('fixed_expense_id', id)
+          .eq('status', 'pending');
+
+        setOccurrences((prev) =>
+          prev.map((o) =>
+            o.fixed_expense_id === id && o.status === 'pending'
+              ? { ...o, amount: newAmt }
+              : o
+          )
+        );
+      }
+
       return { error: null };
     } catch (err: any) {
       return { error: err };
