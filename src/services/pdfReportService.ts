@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { UnifiedTransaction, CategorySpending } from '../types/financial';
 import { formatINR } from '../utils/currency';
 import { format, parseISO } from 'date-fns';
+import { getProxyEndpoints } from './emailReportService';
 
 export interface MonthStatementPdfParams {
   monthName: string; // e.g. "October_2026"
@@ -302,33 +303,36 @@ export async function uploadPdfToGoogleDrive(params: {
   const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
   const targetWebhook = webhookUrl || DEFAULT_GDRIVE_WEBHOOK_URL;
 
-  // 1. Try local proxy server first
-  try {
-    const res = await fetch('http://localhost:3001/api/upload-to-drive', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        filename,
-        base64: cleanBase64,
-        webhookUrl: targetWebhook,
-      }),
-    });
+  // 1. Try local proxy server candidates first
+  const endpoints = getProxyEndpoints('/api/upload-to-drive');
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename,
+          base64: cleanBase64,
+          webhookUrl: targetWebhook,
+        }),
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        return {
-          success: true,
-          message: data.message || `Successfully uploaded ${filename} to Google Drive!`,
-          fileUrl: data.fileUrl,
-          fileId: data.fileId,
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          return {
+            success: true,
+            message: data.message || `Successfully uploaded ${filename} to Google Drive!`,
+            fileUrl: data.fileUrl,
+            fileId: data.fileId,
+          };
+        }
       }
+    } catch {
+      // Continue to next endpoint
     }
-  } catch (proxyErr) {
-    console.warn('[Google Drive] Proxy unavailable, uploading directly to Google Apps Script:', proxyErr);
   }
 
   // 2. Direct upload fallback to Google Apps Script Webhook

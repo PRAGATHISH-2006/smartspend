@@ -37,6 +37,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { FixedExpenseRow } from '../../types/database';
 import { TodayFixedExpenseItem } from '../../types/financial';
 import { formatINR } from '../../utils/currency';
+import { getProxyEndpoints } from '../../services/emailReportService';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'FixedTab'>;
 
@@ -92,31 +93,49 @@ export const FixedExpensesScreen: React.FC<Props> = () => {
   const handleSendTestReminder = async () => {
     setSendingReminder(true);
     setReminderSentMsg(null);
-    try {
-      const res = await fetch('http://localhost:3001/api/send-reminder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slot: new Date().getHours() < 12 ? 'morning' : 'evening',
-          to: recipientEmail,
-        }),
-      });
+    let sentSuccess = false;
+    let successMessage = '';
+    let lastError = '';
 
-      const data = await res.json();
-      if (data.success) {
-        setReminderSentMsg(data.message || `Reminder email dispatched to ${recipientEmail}!`);
-        Alert.alert(
-          'Reminder Dispatched! ⏰',
-          `Reminder email successfully sent to ${recipientEmail}! Please check your Gmail Inbox & Spam folder.`
-        );
-      } else {
-        Alert.alert('Notice', data.error || 'Failed to dispatch reminder');
+    const endpoints = getProxyEndpoints('/api/send-reminder');
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slot: new Date().getHours() < 12 ? 'morning' : 'evening',
+            to: recipientEmail,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            sentSuccess = true;
+            successMessage = data.message || `Reminder email dispatched to ${recipientEmail}!`;
+            break;
+          } else {
+            lastError = data.message || data.error || 'Failed to dispatch reminder';
+          }
+        }
+      } catch (err: any) {
+        lastError = err.message || 'Unable to connect to reminder service';
       }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Unable to connect to reminder service');
-    } finally {
-      setSendingReminder(false);
     }
+
+    if (sentSuccess) {
+      setReminderSentMsg(successMessage);
+      Alert.alert(
+        'Reminder Dispatched! ⏰',
+        `Test reminder email successfully sent to ${recipientEmail}! Please check your Gmail Inbox & Spam folder.`
+      );
+    } else {
+      Alert.alert('Notice', lastError || 'Unable to connect to reminder service on port 3001');
+    }
+
+    setSendingReminder(false);
   };
 
   return (

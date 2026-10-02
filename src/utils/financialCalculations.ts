@@ -297,7 +297,7 @@ export function evaluateFinancialSummary(params: {
 
   const { totalUpcoming } = calculateUpcomingFixedExpenses(
     params.fixedRules,
-    params.occurrences,
+    activeOccurrences,
     periodType,
     currentDate,
     cycleStartDay,

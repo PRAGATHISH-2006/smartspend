@@ -87,6 +87,24 @@ export async function triggerCustomDateRangeEmail(params: {
   });
 }
 
+export function getProxyEndpoints(path: string): string[] {
+  const endpoints: string[] = [];
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (typeof window !== 'undefined' && window.location) {
+    const { hostname } = window.location;
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      endpoints.push(`http://${hostname}:3001${cleanPath}`);
+    }
+    endpoints.push(`${cleanPath}`);
+  }
+
+  endpoints.push(`http://localhost:3001${cleanPath}`);
+  endpoints.push(`http://127.0.0.1:3001${cleanPath}`);
+
+  return Array.from(new Set(endpoints));
+}
+
 /**
  * Trigger month-end close archival statement email with Google Drive link
  */
@@ -193,11 +211,35 @@ export async function triggerMonthCloseStatementEmail(params: {
     attachments = [{ filename: pdfFilename, content: rawContent }];
   }
 
-  // Dispatch via local proxy or Resend
-  try {
-    const proxyRes = await fetch('http://localhost:3001/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+  // Dispatch via local proxy or candidates
+  const proxyEndpoints = getProxyEndpoints('/api/send-email');
+  for (const endpoint of proxyEndpoints) {
+    try {
+      const proxyRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: `📁 Closed Month Archival Statement (${startDate} to ${endDate})`,
+          html: archiveHtml,
+          attachments,
+        }),
+      });
+
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        if (data.success) {
+          return {
+            success: true,
+            message: `Statement email dispatched to ${recipientEmail}!`,
+            reportData,
+          };
+        }
+      }
+    } catch {
+      // Continue to next endpoint
+    }
+  }
       body: JSON.stringify({
         to: recipientEmail,
         subject: `📁 SmartSpend Closed Month Statement & Drive Archive (${startDate} to ${endDate})`,
@@ -483,10 +525,7 @@ async function dispatchReportInternal(params: {
     let emailDispatched = false;
 
     // 1. First attempt: Local/serverless CORS proxy route (bypasses browser CORS)
-    const proxyEndpoints = [
-      'http://localhost:3001/api/send-email',
-      '/api/send-email',
-    ];
+    const proxyEndpoints = getProxyEndpoints('/api/send-email');
 
     for (const endpoint of proxyEndpoints) {
       if (emailDispatched) break;

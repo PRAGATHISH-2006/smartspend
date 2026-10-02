@@ -267,14 +267,21 @@ async function getPendingFixedItems(frequencyFilter = null) {
 /**
  * Dispatch reminder email via Resend
  */
-async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_RECIPIENT) {
+async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_RECIPIENT, isTest = false) {
   const isMonthEnd = slot === 'month_end';
-  const items = await getPendingFixedItems(isMonthEnd ? 'monthly' : null);
+  let items = await getPendingFixedItems(isMonthEnd ? 'monthly' : null);
 
-  // If no pending items and it's a routine scheduler run, we can log and return
+  // If no pending items and it's a routine scheduler run, skip
   if (items.length === 0) {
-    console.log(`[Reminder] No pending fixed expenses for ${slot}. Skipping email.`);
-    return { ok: true, data: { message: 'No pending items to alert' } };
+    if (!isTest) {
+      console.log(`[Reminder] No pending fixed expenses for ${slot}. Skipping email.`);
+      return { ok: true, data: { message: 'No pending items to alert' } };
+    }
+    // For manual test triggers, generate sample demo items so the test email is always delivered
+    items = [
+      { id: 'test-1', name: 'Sample Daily Commitment (Milk / Travel)', amount: 10, frequency: 'daily', category: 'Daily' },
+      { id: 'test-2', name: 'Sample Monthly Commitment (WiFi / Rent)', amount: 10, frequency: 'monthly', category: 'Bills' },
+    ];
   }
 
   const dateStr = new Date().toLocaleDateString('en-IN', {
@@ -284,7 +291,9 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
     year: 'numeric',
   });
 
-  const subject = isMonthEnd
+  const subject = isTest
+    ? `🔔 [TEST] SmartSpend Reminder Alert (${dateStr})`
+    : isMonthEnd
     ? `🚨 SmartSpend Reminder: 2 Days Left to Pay Monthly Fixed Expense (${dateStr})`
     : slot === 'morning'
     ? `⏰ SmartSpend Morning Reminder: Today's Pending Fixed Expenses (${dateStr})`
@@ -297,7 +306,7 @@ async function dispatchReminderEmail(slot = 'morning', targetEmail = DEFAULT_REC
     dateStr,
   });
 
-  console.log(`[Reminder] Dispatching ${slot} reminder to ${targetEmail} (${items.length} items)...`);
+  console.log(`[Reminder] Dispatching ${isTest ? 'TEST ' : ''}${slot} reminder to ${targetEmail} (${items.length} items)...`);
 
   const resendRes = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -388,8 +397,16 @@ const server = http.createServer(async (req, res) => {
 
     req.on('end', async () => {
       try {
-        const { to, subject, html, attachments } = JSON.parse(body);
-        const recipient = Array.isArray(to) ? to : [to];
+        let parsed = {};
+        try {
+          if (body && body.trim()) parsed = JSON.parse(body);
+        } catch (jErr) {
+          console.warn('[send-email] JSON parse error:', jErr.message);
+        }
+
+        const { to, subject, html, attachments } = parsed;
+        const target = to || DEFAULT_RECIPIENT;
+        const recipient = Array.isArray(target) ? target : [target];
 
         console.log(`[Email Proxy] Dispatching email to: ${recipient.join(', ')} with ${attachments ? attachments.length : 0} attachment(s)`);
 
@@ -449,11 +466,17 @@ const server = http.createServer(async (req, res) => {
 
     req.on('end', async () => {
       try {
-        const parsed = body ? JSON.parse(body) : {};
+        let parsed = {};
+        try {
+          if (body && body.trim()) parsed = JSON.parse(body);
+        } catch (jErr) {
+          console.warn('[send-reminder] JSON parse error:', jErr.message);
+        }
+
         const slot = parsed.slot || (new Date().getHours() < 12 ? 'morning' : 'evening');
         const to = parsed.to || DEFAULT_RECIPIENT;
 
-        const result = await dispatchReminderEmail(slot, to);
+        const result = await dispatchReminderEmail(slot, to, true);
 
         res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
         res.end(
@@ -469,6 +492,7 @@ const server = http.createServer(async (req, res) => {
           })
         );
       } catch (err) {
+        console.error('[send-reminder error]:', err);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message }));
       }

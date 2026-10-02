@@ -206,9 +206,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               amount: rule.amount,
               status: 'pending' as const,
               processed_at: null,
+              created_at: new Date().toISOString(),
             },
             { onConflict: 'fixed_expense_id,occurrence_date' }
           );
+      }
+
+      // Re-fetch all occurrences from Supabase to ensure in-memory state is synchronized
+      const { data: freshOccs } = await supabase
+        .from('fixed_expense_occurrences')
+        .select('*')
+        .eq('user_id', userId)
+        .order('occurrence_date', { ascending: false });
+
+      if (freshOccs && freshOccs.length > 0) {
+        return freshOccs as FixedExpenseOccurrenceRow[];
       }
     }
 
