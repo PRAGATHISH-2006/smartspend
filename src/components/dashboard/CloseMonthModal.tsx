@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import {
   X,
@@ -19,7 +20,6 @@ import {
   AlertTriangle,
   ExternalLink,
   Coins,
-  Download,
   Mail,
   ShieldCheck,
   Cloud,
@@ -28,13 +28,18 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  XCircle,
+  Repeat,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME } from '../../constants/theme';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { Badge } from '../common/Badge';
 import { formatINR } from '../../utils/currency';
 import { uploadPdfToGoogleDrive, GoogleDriveUploadResult } from '../../services/pdfReportService';
+import { TodayFixedExpenseItem } from '../../types/financial';
+import { getCategoryMeta } from '../../constants/categories';
 
 interface CloseMonthModalProps {
   visible: boolean;
@@ -44,6 +49,9 @@ interface CloseMonthModalProps {
   totalMoneyAdded: number;
   totalExpenses: number;
   currentBalance: number;
+  todayFixedExpenses?: TodayFixedExpenseItem[];
+  onPayFixedExpense?: (occurrenceId: string, customAmount?: number) => Promise<{ error: Error | null }>;
+  onSkipFixedExpense?: (occurrenceId: string) => Promise<{ error: Error | null }>;
   onConfirmClose: () => Promise<{
     success: boolean;
     rolloverAmount: number;
@@ -64,9 +72,13 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
   totalMoneyAdded,
   totalExpenses,
   currentBalance,
+  todayFixedExpenses = [],
+  onPayFixedExpense,
+  onSkipFixedExpense,
   onConfirmClose,
 }) => {
   const [loading, setLoading] = useState<boolean>(false);
+  const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
   const [closedResult, setClosedResult] = useState<{
     success: boolean;
     rolloverAmount: number;
@@ -126,6 +138,30 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
         setTimeout(() => setCopiedScript(false), 2000);
       }
     } catch {}
+  };
+
+  const handlePayItem = async (item: TodayFixedExpenseItem) => {
+    if (!onPayFixedExpense) return;
+    setActionInProgressId(item.occurrenceId);
+    try {
+      await onPayFixedExpense(item.occurrenceId, item.amount);
+    } catch (e) {
+      console.warn('Pay item error:', e);
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  const handleSkipItem = async (item: TodayFixedExpenseItem) => {
+    if (!onSkipFixedExpense) return;
+    setActionInProgressId(item.occurrenceId);
+    try {
+      await onSkipFixedExpense(item.occurrenceId);
+    } catch (e) {
+      console.warn('Skip item error:', e);
+    } finally {
+      setActionInProgressId(null);
+    }
   };
 
   const handleCloseMonth = async () => {
@@ -211,6 +247,8 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
     onClose();
   };
 
+  const pendingFixedExpenses = todayFixedExpenses.filter((item) => item.status === 'pending');
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleModalClose}>
       <KeyboardAvoidingView
@@ -234,8 +272,8 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                 </Text>
                 <Text style={styles.subtitle}>
                   {closedResult
-                    ? 'Surplus rolled over & PDF saved for Drive'
-                    : 'Rollover surplus balance & archive ledger to Drive'}
+                    ? 'Surplus rolled over & cycle archived'
+                    : 'Review recurring expenses, rollover surplus & archive'}
                 </Text>
               </View>
             </View>
@@ -258,12 +296,12 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                   <View style={styles.rolloverHighlightCard}>
                     <Coins size={22} color="#047857" />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.rolloverHighlightLabel}>Rollover Surplus Added</Text>
+                      <Text style={styles.rolloverHighlightLabel}>Unspent Balance Carried Forward</Text>
                       <Text style={styles.rolloverHighlightAmount}>
-                        +{formatINR(closedResult.rolloverAmount)}
+                        {formatINR(closedResult.rolloverAmount)}
                       </Text>
                       <Text style={styles.rolloverHighlightDesc}>
-                        This amount is now available as starting funds in your next month's wallet.
+                        This exact amount remains available as your starting funds in your next cycle wallet.
                       </Text>
                     </View>
                   </View>
@@ -372,9 +410,9 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
 
                 {/* PDF & Drive Link Box */}
                 <View style={styles.driveCard}>
-                  <Text style={styles.driveCardTitle}>📁 Google Drive Folder Link</Text>
+                  <Text style={styles.driveCardTitle}>📁 Google Drive Archival Statement</Text>
                   <Text style={styles.driveCardDesc}>
-                    Your statement has also been downloaded locally as <Text style={{ fontWeight: '700', color: '#1E40AF' }}>{closedResult.pdfFilename || 'October_2026_Transactions.pdf'}</Text>.
+                    Your ledger statement <Text style={{ fontWeight: '700', color: '#1E40AF' }}>{closedResult.pdfFilename || 'October_2026_Transactions.pdf'}</Text> is preserved for your Google Drive records.
                   </Text>
                   <TouchableOpacity
                     style={styles.openDriveBtn}
@@ -404,6 +442,102 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
             ) : (
               /* 2. CONFIRMATION VIEW (Before Closing) */
               <View>
+                {/* 2A. Recurring Fixed Expenses Settle / Review Section */}
+                {todayFixedExpenses && todayFixedExpenses.length > 0 && (
+                  <View style={styles.fixedReviewCard}>
+                    <View style={styles.fixedReviewHeader}>
+                      <View style={styles.fixedReviewTitleRow}>
+                        <Repeat size={16} color={THEME.colors.primary} />
+                        <Text style={styles.fixedReviewTitle}>Fixed Expenses for this Period</Text>
+                      </View>
+                      {pendingFixedExpenses.length > 0 ? (
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingBadgeText}>
+                            {pendingFixedExpenses.length} Pending
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.settledBadge}>
+                          <Text style={styles.settledBadgeText}>All Settled ✓</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={styles.fixedReviewSub}>
+                      With your permission, choose to <Text style={{ fontWeight: '700' }}>Pay</Text> or <Text style={{ fontWeight: '700' }}>Skip</Text> any fixed expense before closing. Paid amounts will be deducted from your closing balance.
+                    </Text>
+
+                    <View style={styles.fixedItemsList}>
+                      {todayFixedExpenses.map((item) => {
+                        const meta = getCategoryMeta(item.category);
+                        const isPending = item.status === 'pending';
+                        const isCompleted = item.status === 'completed';
+                        const isSkipped = item.status === 'skipped';
+                        const isWorking = actionInProgressId === item.occurrenceId;
+
+                        return (
+                          <View key={item.occurrenceId} style={styles.fixedItemRow}>
+                            <View style={styles.fixedItemLeft}>
+                              <View
+                                style={[
+                                  styles.fixedCategoryDot,
+                                  { backgroundColor: meta.color || THEME.colors.primary },
+                                ]}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.fixedItemName}>{item.name}</Text>
+                                <Text style={styles.fixedItemCategory}>
+                                  {item.category} • <Text style={styles.freqTag}>{item.frequency.toUpperCase()}</Text>
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={styles.fixedItemRight}>
+                              <Text
+                                style={[
+                                  styles.fixedItemAmount,
+                                  isCompleted && styles.amountCompleted,
+                                  isSkipped && styles.amountSkipped,
+                                ]}
+                              >
+                                {formatINR(item.amount)}
+                              </Text>
+
+                              {isWorking ? (
+                                <ActivityIndicator size="small" color={THEME.colors.primary} />
+                              ) : isPending ? (
+                                <View style={styles.fixedActionsRow}>
+                                  <TouchableOpacity
+                                    style={[styles.fixedBtnAction, styles.fixedBtnPay]}
+                                    onPress={() => handlePayItem(item)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <CheckCircle2 size={13} color="#FFF" />
+                                    <Text style={styles.fixedBtnPayText}>Pay</Text>
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={[styles.fixedBtnAction, styles.fixedBtnSkip]}
+                                    onPress={() => handleSkipItem(item)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <XCircle size={13} color={THEME.colors.textSecondary} />
+                                    <Text style={styles.fixedBtnSkipText}>Skip</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ) : isCompleted ? (
+                                <Badge label={`Paid ${formatINR(item.amount)}`} variant="success" size="sm" />
+                              ) : (
+                                <Badge label="Skipped" variant="warning" size="sm" />
+                              )}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
                 {/* Financial Cycle Summary Table */}
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryTitle}>
@@ -438,11 +572,11 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                   <View style={styles.rolloverBox}>
                     <View style={styles.rolloverHeader}>
                       <Coins size={20} color="#047857" />
-                      <Text style={styles.rolloverTitle}>💰 Surplus Added to Next Month</Text>
+                      <Text style={styles.rolloverTitle}>💰 Unspent Balance Carried Forward</Text>
                     </View>
                     <Text style={styles.rolloverAmount}>{formatINR(rolloverAmount)}</Text>
                     <Text style={styles.rolloverText}>
-                      Because your balance is not zero, this exact amount will be automatically rolled over and credited as your starting wallet balance for the next month!
+                      Your remaining balance of {formatINR(rolloverAmount)} will carry over directly into your next cycle wallet so you can continue spending smoothly!
                     </Text>
                   </View>
                 ) : (
@@ -466,7 +600,7 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                     activeOpacity={0.8}
                   >
                     <Text style={styles.driveUrlText} numberOfLines={1}>
-                      drive.google.com/.../1X7rPu2eODrlXcTdmS-jtgdMSRHPV8Xm0
+                      drive.google.com/.../1AJzY39IKyCTR0d7HspLN0bMk609kITT2
                     </Text>
                     <ExternalLink size={14} color={THEME.colors.primary} />
                   </TouchableOpacity>
@@ -573,6 +707,142 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: THEME.spacing.xl,
     paddingTop: THEME.spacing.md,
+  },
+  fixedReviewCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: THEME.borderRadius.xl,
+    padding: THEME.spacing.md,
+    marginBottom: THEME.spacing.md,
+  },
+  fixedReviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  fixedReviewTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fixedReviewTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  settledBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  settledBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  fixedReviewSub: {
+    fontSize: 11,
+    color: THEME.colors.textSecondary,
+    lineHeight: 15,
+    marginBottom: 10,
+  },
+  fixedItemsList: {
+    gap: 8,
+  },
+  fixedItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: THEME.borderRadius.md,
+    padding: 10,
+  },
+  fixedItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  fixedCategoryDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  fixedItemName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  fixedItemCategory: {
+    fontSize: 11,
+    color: THEME.colors.textMuted,
+  },
+  freqTag: {
+    fontWeight: '700',
+    color: THEME.colors.primary,
+  },
+  fixedItemRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  fixedItemAmount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textPrimary,
+  },
+  amountCompleted: {
+    color: '#059669',
+  },
+  amountSkipped: {
+    color: THEME.colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  fixedActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fixedBtnAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  fixedBtnPay: {
+    backgroundColor: '#059669',
+  },
+  fixedBtnPayText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  fixedBtnSkip: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  fixedBtnSkipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: THEME.colors.textSecondary,
   },
   summaryCard: {
     backgroundColor: '#F8FAFC',

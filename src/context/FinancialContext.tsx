@@ -839,17 +839,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const closingBalance = summary.currentBalance;
       const rolloverAmount = Math.max(0, closingBalance);
 
-      // 1. If money is not zero, roll over the surplus to next month's wallet
-      if (rolloverAmount > 0) {
-        await supabase.from('money_additions').insert({
-          user_id: user.id,
-          amount: rolloverAmount,
-          description: `Rollover Surplus from Closed Cycle (${startDateStr} to ${endDateStr})`,
-          payment_method: 'Month-End Rollover',
-        });
-      }
+      // NOTE: We do NOT insert a duplicate money_additions row for rolloverAmount,
+      // because current balance is transaction-based across the user ledger.
+      // The remaining balance naturally stays in the wallet!
 
-      // 2. Generate and download transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf)
+      // 2. Generate transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf) for Drive and Email
       const monthName = format(today, 'MMMM_yyyy'); // e.g. "October_2026"
       const monthDisplay = format(today, 'MMMM yyyy'); // e.g. "October 2026"
       let pdfFilename = `${monthName}_Transactions.pdf`;
@@ -874,18 +868,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         pdfFilename = pdfResult.filename;
         pdfBase64 = pdfResult.base64;
-        downloadPdfDocument(pdfResult.filename, pdfResult.doc);
+
+        // Auto-download of PDF is disabled as requested
 
         // Attempt automated background upload to Google Drive right away
         try {
           const savedWebhook = (await AsyncStorage.getItem('gdrive_webhook_url')) || undefined;
-          const driveRes = await uploadPdfToGoogleDrive({
-            filename: pdfResult.filename,
-            base64: pdfResult.base64,
-            webhookUrl: savedWebhook,
-          });
-          driveUploadSuccess = !!driveRes.success;
-          console.log('[Drive Auto-Upload Result]', driveRes);
+          if (savedWebhook) {
+            const driveRes = await uploadPdfToGoogleDrive({
+              filename: pdfResult.filename,
+              base64: pdfResult.base64,
+              webhookUrl: savedWebhook,
+            });
+            driveUploadSuccess = !!driveRes.success;
+            console.log('[Drive Auto-Upload Result]', driveRes);
+          }
         } catch (upErr) {
           console.warn('Auto drive upload error:', upErr);
         }
@@ -893,14 +890,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('PDF generation error:', pdfErr);
       }
 
-      // Also generate and download CSV backup
-      try {
-        const csvContent = generateTransactionsCsv(unifiedTransactions);
-        const fileName = `${monthName}_Transactions.csv`;
-        downloadFile(fileName, csvContent, 'text/csv');
-      } catch (dlErr) {
-        console.warn('CSV download error:', dlErr);
-      }
+      // Auto-download of CSV is disabled as requested
 
       // 3. Dispatch Month-End Closed Statement to user's email with Drive Link & Attached PDF
       try {
@@ -934,10 +924,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         title: 'Month Successfully Closed 📁',
         message:
           rolloverAmount > 0
-            ? `Month closed! Unspent surplus ₹${rolloverAmount.toLocaleString(
+            ? `Month closed! Unspent balance ₹${rolloverAmount.toLocaleString(
                 'en-IN'
-              )} added to your new cycle wallet. ${pdfFilename} ready for Drive.`
-            : `Month closed! ${pdfFilename} ready for Drive.`,
+              )} remains available in your wallet for the next cycle.`
+            : `Month closed successfully.`,
       });
 
       // 6. Open Drive link in browser
@@ -962,7 +952,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         driveUploadSuccess,
         message: `Month closed successfully! Surplus ₹${rolloverAmount.toLocaleString(
           'en-IN'
-        )} carried forward. ${pdfFilename} created for your Google Drive.`,
+        )} carried forward.`,
       };
     } catch (err: any) {
       return {
@@ -1076,7 +1066,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
         supabase.from('notifications').delete().eq('user_id', user.id),
         supabase.from('weekly_reports').delete().eq('user_id', user.id),
+        supabase.from('budget_settings').delete().eq('user_id', user.id),
       ]);
+
+      try {
+        await AsyncStorage.removeItem(`budget_settings_${user.id}`);
+      } catch {}
+
+      setMoneyAdditions([]);
+      setManualExpenses([]);
+      setFixedExpenses([]);
+      setOccurrences([]);
+      setBudgetSettings(null);
 
       await fetchData();
       return { success: true };
