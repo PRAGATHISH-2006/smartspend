@@ -195,21 +195,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     if (missingRules.length > 0) {
-      const inserts = missingRules.map((rule) => ({
-        fixed_expense_id: rule.id,
-        user_id: userId,
-        occurrence_date: todayStr,
-        amount: rule.amount,
-        status: 'pending' as const,
-      }));
-
-      const { data: newRows } = await supabase
-        .from('fixed_expense_occurrences')
-        .insert(inserts)
-        .select('*');
-
-      if (newRows && newRows.length > 0) {
-        return [...existingOccurrences, ...(newRows as FixedExpenseOccurrenceRow[])];
+      for (const rule of missingRules) {
+        await supabase
+          .from('fixed_expense_occurrences')
+          .upsert(
+            {
+              fixed_expense_id: rule.id,
+              user_id: userId,
+              occurrence_date: todayStr,
+              amount: rule.amount,
+              status: 'pending' as const,
+              processed_at: null,
+            },
+            { onConflict: 'fixed_expense_id,occurrence_date' }
+          );
       }
     }
 
@@ -358,22 +357,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Active Cycle Occurrences Filter:
   // Isolate occurrences to the current cycle (created on or after the latest Rollover Surplus)
-  const latestRollover = moneyAdditions
-    .filter((a) => (a.description || '').toLowerCase().includes('rollover surplus'))
-    .sort((a, b) => new Date(b.created_at || b.added_at).getTime() - new Date(a.created_at || a.added_at).getTime())[0];
-
-  const rolloverCutoffTime = latestRollover
-    ? new Date(latestRollover.created_at || latestRollover.added_at).getTime()
-    : 0;
-
   // Today's occurrences & pending cycle occurrences mapped with fixed expense rule details
   const todayStr = getTodayDateString();
   const todayFixedExpenses: TodayFixedExpenseItem[] = occurrences
     .filter((o) => {
-      const occCreatedTime = new Date(o.created_at || o.occurrence_date).getTime();
-      if (rolloverCutoffTime > 0 && occCreatedTime < rolloverCutoffTime) {
-        return false; // Skip occurrences from closed prior cycles
-      }
       return o.occurrence_date === todayStr || o.status === 'pending';
     })
     .map((o) => {
@@ -979,15 +966,22 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // 5. Generate fresh pending occurrences for all active recurring expenses in the new cycle
       const activeRules = fixedExpenses.filter((r) => r.active);
       if (activeRules.length > 0) {
-        const newOccs = activeRules.map((rule) => ({
-          fixed_expense_id: rule.id,
-          user_id: user.id,
-          occurrence_date: newStartDateStr,
-          amount: rule.amount,
-          status: 'pending' as const,
-        }));
-
-        await supabase.from('fixed_expense_occurrences').insert(newOccs);
+        for (const rule of activeRules) {
+          await supabase
+            .from('fixed_expense_occurrences')
+            .upsert(
+              {
+                fixed_expense_id: rule.id,
+                user_id: user.id,
+                occurrence_date: newStartDateStr,
+                amount: rule.amount,
+                status: 'pending' as const,
+                processed_at: null,
+                created_at: new Date().toISOString(),
+              },
+              { onConflict: 'fixed_expense_id,occurrence_date' }
+            );
+        }
       }
 
       // 5. In-app notification
