@@ -131,7 +131,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const ensureTodayOccurrences = async (
     userId: string,
     rules: FixedExpenseRow[],
-    existingOccurrences: FixedExpenseOccurrenceRow[]
+    existingOccurrences: FixedExpenseOccurrenceRow[],
+    rolloverCutoffTime: number = 0
   ) => {
     const today = new Date();
     const todayStr = getTodayDateString(today);
@@ -141,10 +142,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth(); // 0-indexed (0 = Jan, 9 = Oct)
 
+    // Filter occurrences belonging to current active cycle
+    const activeCycleOccurrences = rolloverCutoffTime > 0
+      ? existingOccurrences.filter((o) => {
+          const occTime = new Date(o.created_at || o.occurrence_date).getTime();
+          return occTime >= rolloverCutoffTime;
+        })
+      : existingOccurrences;
+
     for (const rule of activeRules) {
       if (rule.frequency === 'daily') {
-        // Daily: Check if occurrence exists for today's exact date
-        const hasToday = existingOccurrences.some(
+        // Daily: Check if occurrence exists for today's exact date in active cycle
+        const hasToday = activeCycleOccurrences.some(
           (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
         );
         if (!hasToday) {
@@ -154,7 +163,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Weekly: Check if occurrence exists for today when day of week matches
         const ruleStartDate = parseISO(rule.start_date);
         const isDayOfWeek = today.getDay() === ruleStartDate.getDay();
-        const hasToday = existingOccurrences.some(
+        const hasToday = activeCycleOccurrences.some(
           (o) => o.fixed_expense_id === rule.id && o.occurrence_date === todayStr
         );
         if (isDayOfWeek && !hasToday) {
@@ -162,7 +171,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       } else if (rule.frequency === 'monthly') {
         // Monthly: Prompt once per calendar month / billing cycle
-        const hasThisMonth = existingOccurrences.some((o) => {
+        const hasThisMonth = activeCycleOccurrences.some((o) => {
           if (o.fixed_expense_id !== rule.id) return false;
           const occDate = parseISO(o.occurrence_date);
           return occDate.getFullYear() === currentYear && occDate.getMonth() === currentMonth;
@@ -173,7 +182,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       } else if (rule.frequency === 'yearly') {
         // Yearly: Prompt once per 12-month calendar year
-        const hasThisYear = existingOccurrences.some((o) => {
+        const hasThisYear = activeCycleOccurrences.some((o) => {
           if (o.fixed_expense_id !== rule.id) return false;
           const occDate = parseISO(o.occurrence_date);
           return occDate.getFullYear() === currentYear;
@@ -294,11 +303,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('Error reading budget settings cache:', cacheErr);
       }
 
-      // Ensure today's occurrences exist idempotently
+      // Identify active cycle rollover cutoff
+      const latestRollover = fetchedAdditions
+        .filter((a) => (a.description || '').toLowerCase().includes('rollover surplus'))
+        .sort((a, b) => new Date(b.created_at || b.added_at).getTime() - new Date(a.created_at || a.added_at).getTime())[0];
+
+      const rolloverCutoff = latestRollover
+        ? new Date(latestRollover.created_at || latestRollover.added_at).getTime()
+        : 0;
+
+      // Ensure today's / active cycle occurrences exist idempotently
       fetchedOccurrences = await ensureTodayOccurrences(
         user.id,
         fetchedFixed,
-        fetchedOccurrences
+        fetchedOccurrences,
+        rolloverCutoff
       );
 
       setMoneyAdditions(fetchedAdditions);
@@ -869,6 +888,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const startDateStr =
         budgetSettings?.custom_start_date || format(currentPeriod.periodStart, 'yyyy-MM-dd');
+      const endDateStr =
+        budgetSettings?.custom_end_date || format(currentPeriod.periodEnd, 'yyyy-MM-dd');
+      const closingBalance = summary.currentBalance;
+      const rolloverAmount = Math.max(0, closingBalance);
+
       // 1. Transfer remaining surplus to next month's wallet and log transaction
       if (rolloverAmount > 0) {
         await supabase.from('money_additions').insert({
