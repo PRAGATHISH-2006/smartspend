@@ -1,8 +1,14 @@
 // Email Report Dispatcher Service (Supabase Edge Function & Resend integration)
 
 import { supabase } from './supabase';
-import { EmailReportData, generateHtmlEmail } from '../utils/emailTemplate';
+import {
+  EmailReportData,
+  generateHtmlEmail,
+  generateLowBalanceEmail,
+  generateCycleEndingEmail,
+} from '../utils/emailTemplate';
 import { getLastWeekRange, getCurrentMonthRange } from '../utils/dateUtils';
+import { formatINR } from '../utils/currency';
 
 export interface EmailReportSendResult {
   success: boolean;
@@ -632,3 +638,375 @@ async function dispatchReportInternal(params: {
     };
   }
 }
+
+/**
+ * Universal email dispatcher helper supporting serverless proxy endpoints and direct Resend API
+ */
+export async function dispatchEmailDirectly(params: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: Array<{ filename: string; content: string }>;
+}): Promise<{ success: boolean; id?: string; message: string; error?: string }> {
+  const { to, subject, html, attachments } = params;
+  const cleanTo = (to || '').trim();
+  if (!cleanTo) {
+    return { success: false, message: 'No recipient email specified', error: 'Missing recipient' };
+  }
+
+  // 1. Try local/Vercel serverless proxy route
+  const proxyEndpoints = getProxyEndpoints('/api/send-email');
+  for (const endpoint of proxyEndpoints) {
+    try {
+      const proxyRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: cleanTo,
+          subject,
+          html,
+          attachments,
+        }),
+      });
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json();
+        if (proxyData.success) {
+          return { success: true, id: proxyData.id, message: `Email sent to ${cleanTo}!` };
+        }
+      }
+    } catch {
+      // Continue to next endpoint or direct fallback
+    }
+  }
+
+  // 2. Direct Resend API dispatch fallback
+  const resendApiKey =
+    process.env.EXPO_PUBLIC_RESEND_API_KEY ||
+    process.env.RESEND_API_KEY ||
+    '';
+  const fromSender =
+    process.env.EXPO_PUBLIC_RESEND_FROM ||
+    'SmartSpend <onboarding@resend.dev>';
+
+  if (resendApiKey) {
+    try {
+      const resendPayload: any = {
+        from: fromSender,
+        to: [cleanTo],
+        subject,
+        html,
+      };
+      if (attachments && attachments.length > 0) {
+        resendPayload.attachments = attachments;
+      }
+
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${resendApiKey}`,
+        },
+        body: JSON.stringify(resendPayload),
+      });
+
+      const resendJson = await resendRes.json();
+      if (resendRes.ok && resendJson.id) {
+        return { success: true, id: resendJson.id, message: `Email delivered to ${cleanTo}!` };
+      }
+      return { success: false, message: resendJson.message || 'Resend error', error: JSON.stringify(resendJson) };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Network error', error: String(e) };
+    }
+  }
+
+  return { success: false, message: 'Resend API key not configured', error: 'No API key' };
+}
+
+/**
+ * Dispatch an automated Low Balance Alert email to the user
+ */
+export async function sendLowBalanceEmailAlert(params: {
+  userId: string;
+  currentBalance: number;
+  threshold: number;
+  safeToSpend: number;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', params.userId)
+      .maybeSingle();
+
+    const sessionRes = await supabase.auth.getSession();
+    const recipientEmail = (profile?.email || sessionRes?.data?.session?.user?.email || '').trim();
+    if (!recipientEmail) {
+      return { success: false, message: 'Recipient email not found' };
+    }
+
+    const userName = profile?.name || recipientEmail.split('@')[0] || 'SmartSpend User';
+    const html = generateLowBalanceEmail({
+      userName,
+      currentBalance: params.currentBalance,
+      threshold: params.threshold,
+      safeToSpend: params.safeToSpend,
+    });
+
+    const res = await dispatchEmailDirectly({
+      to: recipientEmail,
+      subject: `⚠️ SmartSpend Alert: Low Balance Warning (₹${params.currentBalance.toLocaleString('en-IN')})`,
+      html,
+    });
+
+    return {
+      success: res.success,
+      message: res.success
+        ? `Low balance alert emailed to ${recipientEmail}`
+        : res.message,
+    };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Error sending low balance alert' };
+  }
+}
+
+/**
+ * Dispatch a 5-Day Remaining Cycle Alert email to the user
+ */
+export async function sendFiveDayRemainingEmailAlert(params: {
+  userId: string;
+  daysRemaining: number;
+  periodEnd: string;
+  remainingBalance: number;
+  safeToSpend: number;
+  upcomingFixedExpenses: number;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', params.userId)
+      .maybeSingle();
+
+    const sessionRes = await supabase.auth.getSession();
+    const recipientEmail = (profile?.email || sessionRes?.data?.session?.user?.email || '').trim();
+    if (!recipientEmail) {
+      return { success: false, message: 'Recipient email not found' };
+    }
+
+    const userName = profile?.name || recipientEmail.split('@')[0] || 'SmartSpend User';
+    const html = generateCycleEndingEmail({
+      userName,
+      daysRemaining: params.daysRemaining,
+      periodEnd: params.periodEnd,
+      remainingBalance: params.remainingBalance,
+      safeToSpend: params.safeToSpend,
+      upcomingFixedExpenses: params.upcomingFixedExpenses,
+    });
+
+    const res = await dispatchEmailDirectly({
+      to: recipientEmail,
+      subject: `⏳ SmartSpend Alert: ${params.daysRemaining} Days Left in Current Budget Cycle`,
+      html,
+    });
+
+    return {
+      success: res.success,
+      message: res.success
+        ? `Cycle ending alert emailed to ${recipientEmail}`
+        : res.message,
+    };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Error sending cycle ending alert' };
+  }
+}
+
+/**
+ * Dispatch a Fixed Expense Reminder email (Morning, Evening, Mid-Week, Week-End, Month-End)
+ */
+export async function sendFixedExpenseReminderEmail(params: {
+  userId: string;
+  slot: 'morning' | 'evening' | 'mid_week' | 'week_end' | 'month_end' | 'instant';
+  pendingItems: Array<{ id: string; name: string; amount: number; frequency: string; category?: string }>;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, email')
+      .eq('id', params.userId)
+      .maybeSingle();
+
+    const sessionRes = await supabase.auth.getSession();
+    const recipientEmail = (profile?.email || sessionRes?.data?.session?.user?.email || '').trim();
+    if (!recipientEmail) {
+      return { success: false, message: 'Recipient email not found' };
+    }
+
+    const { slot, pendingItems } = params;
+    const isMorning = slot === 'morning';
+    const isMonthEnd = slot === 'month_end';
+    const isMidWeek = slot === 'mid_week';
+    const isWeekEnd = slot === 'week_end';
+
+    let greeting = isMorning ? 'Good morning' : 'Good evening';
+    let timeLabel = isMorning ? '8:00 AM Daily Alert' : '6:00 PM Evening Check-In';
+    let title = isMorning
+      ? "Today's Pending Fixed Expenses"
+      : "Don't Forget to Mark Today's Fixed Expenses!";
+    let subtext = isMorning
+      ? 'You have pending daily fixed expenses that require your action. You can Pay or Skip them directly in SmartSpend.'
+      : 'Before your day ends, make sure to log your pending recurring expenses so your Safe to Spend balance stays 100% accurate.';
+
+    if (isMidWeek) {
+      greeting = 'Hello';
+      timeLabel = '📅 Mid-Week Check-In (Day 3)';
+      title = 'Mid-Week Pending Weekly Expenses Alert';
+      subtext = 'You are on Day 3 of your current 7-day budget week. You have unpaid weekly commitments due this week.';
+    } else if (isWeekEnd) {
+      greeting = 'Hello';
+      timeLabel = '⏳ 1 Day Left in Budget Week';
+      title = 'Weekly Budget Week Ending Soon Alert';
+      subtext = "Your current 7-day budget week ends tomorrow. Please make sure to log or pay this week's pending weekly commitments.";
+    } else if (isMonthEnd) {
+      greeting = 'Hello';
+      timeLabel = '🚨 2 Days Left in Month';
+      title = 'Pending Monthly Fixed Expenses Reminder';
+      subtext = 'Your monthly financial cycle is ending in 2 days. You have unpaid monthly fixed expenses that must be Paid or Skipped before closing the month.';
+    }
+
+    const totalAmount = pendingItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const itemsHtml =
+      pendingItems.length === 0
+        ? `<tr><td colspan="3" style="padding: 16px; text-align: center; color: #64748b; font-style: italic;">No pending recurring expenses at this time.</td></tr>`
+        : pendingItems
+            .map(
+              (i) => `
+          <tr>
+            <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a;">${i.name}</td>
+            <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #64748b; text-transform: capitalize;">${i.frequency || 'Daily'}</td>
+            <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #059669; text-align: right;">${formatINR(Number(i.amount))}</td>
+          </tr>
+        `
+            )
+            .join('');
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartSpend Reminder</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 10px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background-color: ${isMonthEnd ? '#991b1b' : '#0f172a'}; padding: 32px 28px; text-align: left;">
+              <span style="display: inline-block; background-color: rgba(255, 255, 255, 0.2); color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; text-transform: uppercase;">
+                ${timeLabel}
+              </span>
+              <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 12px 0 6px 0;">
+                ${title}
+              </h1>
+              <p style="color: #cbd5e1; font-size: 13px; margin: 0;">
+                ${dateStr} • Prepared for ${recipientEmail}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px;">
+              <p style="font-size: 16px; color: #1e293b; margin: 0 0 12px 0; font-weight: 600;">
+                ${greeting}!
+              </p>
+              <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px 0;">
+                ${subtext}
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td>
+                          <span style="font-size: 12px; font-weight: 600; color: #065f46; text-transform: uppercase;">Total Pending Amount</span>
+                          <div style="font-size: 24px; font-weight: 800; color: #047857; margin-top: 4px;">${formatINR(totalAmount)}</div>
+                        </td>
+                        <td align="right">
+                          <span style="display: inline-block; background-color: #059669; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px;">
+                            ${pendingItems.length} Pending Item${pendingItems.length === 1 ? '' : 's'}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e2e8f0; border-radius: 10px; border-collapse: separate; overflow: hidden; margin-bottom: 24px;">
+                <tr style="background-color: #f1f5f9;">
+                  <th align="left" style="padding: 10px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Expense</th>
+                  <th align="left" style="padding: 10px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Frequency</th>
+                  <th align="right" style="padding: 10px 14px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Amount</th>
+                </tr>
+                ${itemsHtml}
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="https://smartspend-two.vercel.app" style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 700; padding: 14px 32px; border-radius: 10px;">
+                      Open SmartSpend & Pay / Skip Now →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 28px; text-align: center;">
+              <p style="font-size: 12px; color: #94a3b8; margin: 0 0 4px 0;">
+                SmartSpend • Automated Financial Engine
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const subject = isMidWeek
+      ? `📅 SmartSpend Mid-Week Alert: Weekly Fixed Expenses Check-In (${dateStr})`
+      : isWeekEnd
+      ? `⏳ SmartSpend Alert: 1 Day Left in Current Budget Week (${dateStr})`
+      : isMonthEnd
+      ? `🚨 SmartSpend Reminder: 2 Days Left to Pay Monthly Fixed Expense (${dateStr})`
+      : isMorning
+      ? `⏰ SmartSpend Morning Reminder: Today's Pending Fixed Expenses (${dateStr})`
+      : `⏰ SmartSpend Evening Reminder: Don't forget to mark today's fixed expenses!`;
+
+    const res = await dispatchEmailDirectly({
+      to: recipientEmail,
+      subject,
+      html,
+    });
+
+    return {
+      success: res.success,
+      message: res.success
+        ? `Reminder email (${slot}) sent to ${recipientEmail}!`
+        : res.message,
+    };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Error sending fixed expense reminder' };
+  }
+}
+

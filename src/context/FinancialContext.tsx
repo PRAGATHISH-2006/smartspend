@@ -29,6 +29,10 @@ import {
   triggerMonthCloseStatementEmail,
   generateTransactionsCsv,
   downloadFile,
+  sendLowBalanceEmailAlert,
+  sendFiveDayRemainingEmailAlert,
+  sendFixedExpenseReminderEmail,
+  dispatchEmailDirectly,
 } from '../services/emailReportService';
 import {
   generateMonthStatementPdf,
@@ -104,6 +108,9 @@ interface FinancialContextType {
   }>;
   loadDemoData: () => Promise<{ success: boolean; error?: string }>;
   resetUserData: () => Promise<{ success: boolean; error?: string }>;
+  sendFixedRemindersEmail: (slot?: 'morning' | 'evening' | 'mid_week' | 'week_end' | 'month_end' | 'instant') => Promise<{ success: boolean; message: string }>;
+  sendLowBalanceEmailAlertNow: () => Promise<{ success: boolean; message: string }>;
+  sendCycleEndingEmailAlertNow: () => Promise<{ success: boolean; message: string }>;
 }
 
 const defaultSummary: FinancialSummary = {
@@ -537,6 +544,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           type: 'LOW_BALANCE',
           title: '⚠️ Low Balance Alert',
           message: `Your balance is ₹${newBalance.toFixed(2)}, which is below your threshold of ₹${summary.lowBalanceThreshold}.`,
+        });
+
+        // Dispatch immediate email alert
+        sendLowBalanceEmailAlert({
+          userId: user.id,
+          currentBalance: newBalance,
+          threshold: summary.lowBalanceThreshold,
+          safeToSpend: Math.max(0, newBalance - summary.upcomingFixedExpenses),
+        }).catch((emailErr) => {
+          console.warn('Low balance email dispatch notice:', emailErr);
         });
       }
 
@@ -1236,6 +1253,65 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Instant / Test Email Dispatchers
+  const sendFixedRemindersEmail = async (
+    slot: 'morning' | 'evening' | 'mid_week' | 'week_end' | 'month_end' | 'instant' = 'instant'
+  ) => {
+    if (!user?.id) return { success: false, message: 'User not authenticated' };
+    const pendingItems = todayFixedExpenses
+      .filter((i) => i.status === 'pending')
+      .map((i) => ({
+        id: i.occurrenceId,
+        name: i.name,
+        amount: i.amount,
+        frequency: i.frequency,
+        category: i.category,
+      }));
+
+    return await sendFixedExpenseReminderEmail({
+      userId: user.id,
+      slot,
+      pendingItems: pendingItems.length > 0 ? pendingItems : todayFixedExpenses.map((i) => ({
+        id: i.occurrenceId,
+        name: i.name,
+        amount: i.amount,
+        frequency: i.frequency,
+        category: i.category,
+      })),
+    });
+  };
+
+  const sendLowBalanceEmailAlertNow = async () => {
+    if (!user?.id) return { success: false, message: 'User not authenticated' };
+    return await sendLowBalanceEmailAlert({
+      userId: user.id,
+      currentBalance: summary.currentBalance,
+      threshold: summary.lowBalanceThreshold,
+      safeToSpend: summary.safeToSpend,
+    });
+  };
+
+  const sendCycleEndingEmailAlertNow = async () => {
+    if (!user?.id) return { success: false, message: 'User not authenticated' };
+    const today = new Date();
+    const currentPeriod = getDaysRemainingInPeriod(
+      budgetSettings?.period_type || 'monthly',
+      today,
+      budgetSettings?.cycle_start_day || 1,
+      budgetSettings?.custom_start_date,
+      budgetSettings?.custom_end_date
+    );
+
+    return await sendFiveDayRemainingEmailAlert({
+      userId: user.id,
+      daysRemaining: summary.daysRemaining,
+      periodEnd: format(currentPeriod.periodEnd, 'yyyy-MM-dd'),
+      remainingBalance: summary.currentBalance,
+      safeToSpend: summary.safeToSpend,
+      upcomingFixedExpenses: summary.upcomingFixedExpenses,
+    });
+  };
+
   return (
     <FinancialContext.Provider
       value={{
@@ -1266,6 +1342,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         closeCurrentMonth,
         loadDemoData,
         resetUserData,
+        sendFixedRemindersEmail,
+        sendLowBalanceEmailAlertNow,
+        sendCycleEndingEmailAlertNow,
       }}
     >
       {children}

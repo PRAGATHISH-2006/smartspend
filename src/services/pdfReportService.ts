@@ -55,97 +55,98 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  // 1. Top Emerald Banner
+  // 1. Top Emerald Header Banner
   doc.setFillColor(5, 150, 105); // #059669
   doc.rect(0, 0, pageWidth, 28, 'F');
 
   // Title text in banner
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('SMARTSPEND MONTHLY FINANCIAL STATEMENT', 14, 13);
+  doc.setFontSize(15);
+  doc.text('SMARTSPEND MONTHLY FINANCIAL STATEMENT', 14, 12);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(209, 250, 229);
-  doc.text(`Month: ${monthDisplay} | Period: ${startDate} to ${endDate}`, 14, 21);
+  doc.text(`Month: ${monthDisplay}   |   Cycle Period: ${startDate} to ${endDate}`, 14, 20);
 
-  // 2. Metadata details
+  // 2. Metadata details row
   doc.setTextColor(100, 116, 139);
-  doc.setFontSize(9);
-  doc.text(`Account Owner: ${recipientEmail}`, 14, 34);
+  doc.setFontSize(8.5);
+  doc.text(`Account: ${recipientEmail}`, 14, 34);
   doc.text(`Generated On: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`, pageWidth - 14, 34, {
     align: 'right',
   });
 
-  // 3. Executive Summary KPI Grid (Box)
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, 38, pageWidth - 28, 36, 3, 3, 'FD');
+  // 3. Executive KPI Summary Cards (4 Balanced Equal-Width Metric Cards)
+  const cardY = 38;
+  const cardHeight = 24;
+  const marginX = 14;
+  const availableWidth = pageWidth - marginX * 2; // 182mm
+  const cardGap = 3.5;
+  const cardWidth = (availableWidth - cardGap * 3) / 4; // ~42.8mm per card
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Closed Month Financial Summary', 18, 45);
+  const kpis = [
+    {
+      title: 'Starting Balance',
+      value: formatINR(startingBalance),
+      color: [15, 23, 42],
+      bgColor: [248, 250, 252],
+      borderColor: [226, 232, 240],
+    },
+    {
+      title: 'Money Added (+)',
+      value: `+${formatINR(totalMoneyAdded)}`,
+      color: [5, 150, 105],
+      bgColor: [236, 253, 245],
+      borderColor: [167, 243, 208],
+    },
+    {
+      title: 'Total Expenses (-)',
+      value: `-${formatINR(totalExpenses)}`,
+      color: [220, 38, 38],
+      bgColor: [254, 242, 242],
+      borderColor: [254, 202, 202],
+    },
+    {
+      title: 'Rollover Surplus',
+      value: formatINR(rolloverAmount),
+      color: [4, 120, 87],
+      bgColor: [209, 250, 229],
+      borderColor: [52, 211, 153],
+    },
+  ];
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
+  kpis.forEach((kpi, idx) => {
+    const x = marginX + idx * (cardWidth + cardGap);
+    // Draw background card
+    doc.setFillColor(kpi.bgColor[0], kpi.bgColor[1], kpi.bgColor[2]);
+    doc.setDrawColor(kpi.borderColor[0], kpi.borderColor[1], kpi.borderColor[2]);
+    doc.roundedRect(x, cardY, cardWidth, cardHeight, 2, 2, 'FD');
 
-  // Column 1: Starting & Added
-  doc.text('Starting Balance:', 18, 52);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(formatINR(startingBalance), 65, 52, { align: 'right' });
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(kpi.title.toUpperCase(), x + cardWidth / 2, cardY + 7, { align: 'center' });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Total Money Added:', 18, 59);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(5, 150, 105);
-  doc.text(`+${formatINR(totalMoneyAdded)}`, 65, 59, { align: 'right' });
+    // Amount Value
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+    doc.text(kpi.value, x + cardWidth / 2, cardY + 16, { align: 'center' });
+  });
 
-  // Column 2: Expenses & Closing Net
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Total Expenses Incurred:', 80, 52);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(220, 38, 38);
-  doc.text(`-${formatINR(totalExpenses)}`, 140, 52, { align: 'right' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Closing Net Balance:', 80, 59);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(formatINR(closingBalance), 140, 59, { align: 'right' });
-
-  // Column 3: Rollover Surplus Highlight
-  doc.setFillColor(236, 253, 245);
-  doc.setDrawColor(16, 185, 129);
-  doc.roundedRect(146, 42, 50, 28, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(4, 120, 87);
-  doc.text('ROLLED OVER TO NEXT MONTH', 171, 48, { align: 'center' });
-
-  doc.setFontSize(14);
-  doc.text(formatINR(rolloverAmount), 171, 58, { align: 'center' });
-
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Added as starting balance', 171, 64, { align: 'center' });
+  let currentY = cardY + cardHeight + 8; // ~70mm
 
   // 4. Category Breakdown Table
-  let currentY = 80;
-
   if (categoryBreakdown && categoryBreakdown.length > 0) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42);
-    doc.text('Spending by Category', 14, currentY);
+    doc.text('Spending Breakdown by Category', 14, currentY);
 
     const catRows = categoryBreakdown.map((c) => [
       c.name,
@@ -155,7 +156,7 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
 
     autoTable(doc, {
       startY: currentY + 3,
-      head: [['Category', 'Amount Incurred', '% of Total']],
+      head: [['Category', 'Amount Incurred', '% Share']],
       body: catRows,
       theme: 'grid',
       headStyles: {
@@ -163,6 +164,12 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
         textColor: [255, 255, 255],
         fontSize: 8,
         fontStyle: 'bold',
+        halign: 'left',
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto', halign: 'left' },
+        1: { cellWidth: 42, halign: 'right', fontStyle: 'bold' },
+        2: { cellWidth: 30, halign: 'right' },
       },
       bodyStyles: {
         fontSize: 8,
@@ -171,23 +178,33 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
       margin: { left: 14, right: 14 },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    currentY = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // 5. Complete Transaction Details Ledger Table
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Full Transaction Details (${transactions.length} Records)`, 14, currentY);
+  // 5. Complete Chronological Transaction Ledger Table
+  // Sort transactions chronologically (newest first, secondary sort by ID)
+  const sortedTransactions = [...transactions].sort((a, b) => {
+    const dateA = a.date || '';
+    const dateB = b.date || '';
+    if (dateB !== dateA) {
+      return dateB.localeCompare(dateA);
+    }
+    return (b.id || '').localeCompare(a.id || '');
+  });
 
-  const txRows = transactions.map((tx) => {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Complete Transaction Ledger (${sortedTransactions.length} Records)`, 14, currentY);
+
+  const txRows = sortedTransactions.map((tx) => {
     const isIncome = tx.rawType === 'income';
     const amountStr = isIncome ? `+${formatINR(tx.amount)}` : `-${formatINR(tx.amount)}`;
     const typeLabel =
       tx.type === 'money_added'
         ? 'Wallet Top-up'
         : tx.type === 'fixed_expense'
-        ? 'Fixed / Recurring'
+        ? 'Daily Fixed'
         : tx.type === 'skipped_fixed_expense'
         ? 'Skipped Fixed'
         : 'Manual Expense';
@@ -211,20 +228,28 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
       textColor: [255, 255, 255],
       fontSize: 8,
       fontStyle: 'bold',
+      halign: 'left',
     },
     bodyStyles: {
       fontSize: 8,
       textColor: [15, 23, 42],
     },
     columnStyles: {
-      0: { cellWidth: 26 },
-      1: { cellWidth: 32 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+      0: { cellWidth: 26, halign: 'center' },
+      1: { cellWidth: 30, halign: 'left' },
+      2: { cellWidth: 32, halign: 'left' },
+      3: { cellWidth: 'auto', halign: 'left' },
+      4: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
     },
     didParseCell: (data) => {
-      // Highlight amounts
+      // Synchronize Amount header alignment with column alignment
+      if (data.column.index === 4 && data.section === 'head') {
+        data.cell.styles.halign = 'right';
+      }
+      if (data.column.index === 0 && data.section === 'head') {
+        data.cell.styles.halign = 'center';
+      }
+      // Highlight amounts: green for top-up, red for expenses
       if (data.column.index === 4 && data.section === 'body') {
         const val = String(data.cell.raw || '');
         if (val.startsWith('+')) {
@@ -234,26 +259,31 @@ export function generateMonthStatementPdf(params: MonthStatementPdfParams): Gene
         }
       }
     },
-    margin: { left: 14, right: 14 },
+    margin: { top: 32, bottom: 18, left: 14, right: 14 },
   });
 
-  // 6. Page Numbers and Google Drive Backup Link in Footer
+  // 6. Professional Footer on Every Page
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(7);
+    doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
 
+    // Subtle divider line above footer
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(14, pageHeight - 11, pageWidth - 14, pageHeight - 11);
+
     doc.text(
-      `SmartSpend Permanent Google Drive Archive: https://drive.google.com/drive/folders/1AJzY39IKyCTR0d7HspLN0bMk609kITT2?usp=sharing`,
+      `SmartSpend Financial Archival Engine • Google Drive Cloud Backup`,
       14,
-      doc.internal.pageSize.getHeight() - 6
+      pageHeight - 6
     );
 
     doc.text(
       `Page ${i} of ${totalPages}`,
       pageWidth - 14,
-      doc.internal.pageSize.getHeight() - 6,
+      pageHeight - 6,
       { align: 'right' }
     );
   }

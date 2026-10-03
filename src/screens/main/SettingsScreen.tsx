@@ -23,6 +23,9 @@ import {
   Shield,
   HelpCircle,
   Calendar,
+  Mail,
+  Send,
+  CheckCircle,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
@@ -37,14 +40,26 @@ import { PWAInstallBanner } from '../../components/common/PWAInstallBanner';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { formatINR } from '../../utils/currency';
+import { triggerWeeklyReportEmail } from '../../services/emailReportService';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'SettingsTab'>;
 
 export const SettingsScreen: React.FC<Props> = () => {
   const { user, profile, signOut } = useAuth();
-  const { summary, budgetSettings, updateBudgetSettings, loadDemoData, resetUserData } =
-    useFinancial();
+  const {
+    summary,
+    budgetSettings,
+    updateBudgetSettings,
+    loadDemoData,
+    resetUserData,
+    sendFixedRemindersEmail,
+    sendLowBalanceEmailAlertNow,
+    sendCycleEndingEmailAlertNow,
+  } = useFinancial();
   const { settings, updateSettings } = useNotification();
+
+  const [emailTestLoading, setEmailTestLoading] = useState<string | null>(null);
+  const [emailTestResult, setEmailTestResult] = useState<string | null>(null);
 
   const [thresholdStr, setThresholdStr] = useState<string>(
     String(budgetSettings?.low_balance_threshold ?? 2000)
@@ -425,6 +440,154 @@ export const SettingsScreen: React.FC<Props> = () => {
               trackColor={{ false: THEME.colors.border, true: THEME.colors.primaryBorder }}
               thumbColor={THEME.colors.primary}
             />
+          </View>
+
+          {/* Live Email Diagnostic & Test Center */}
+          <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: THEME.colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Mail size={16} color={THEME.colors.primary} style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: THEME.colors.textPrimary }}>
+                Instant Email Verification & Diagnostics
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, color: THEME.colors.textSecondary, marginBottom: 12 }}>
+              Trigger and verify any alert directly to <Text style={{ fontWeight: '700', color: THEME.colors.textPrimary }}>{user?.email || 'selvanpragathish@gmail.com'}</Text>:
+            </Text>
+
+            {emailTestResult ? (
+              <View style={{ backgroundColor: '#ecfdf5', padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#a7f3d0' }}>
+                <Text style={{ fontSize: 12, color: '#065f46', fontWeight: '600' }}>
+                  {emailTestResult}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('fixed');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendFixedRemindersEmail('morning');
+                    setEmailTestResult(res.message || 'Fixed expenses reminder sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#cbd5e1',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#0f172a" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0f172a' }}>
+                  {emailTestLoading === 'fixed' ? 'Sending...' : 'Fixed Expense Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('low_balance');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendLowBalanceEmailAlertNow();
+                    setEmailTestResult(res.message || 'Low balance alert sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#fef2f2',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#fca5a5',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#dc2626" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#dc2626' }}>
+                  {emailTestLoading === 'low_balance' ? 'Sending...' : 'Low Balance Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('5day');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendCycleEndingEmailAlertNow();
+                    setEmailTestResult(res.message || '5-Day cycle alert sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#fff7ed',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#fdba74',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#c2410c" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#c2410c' }}>
+                  {emailTestLoading === '5day' ? 'Sending...' : '5-Day Cycle Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!user?.id) return;
+                  setEmailTestLoading('weekly');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await triggerWeeklyReportEmail({ userId: user.id });
+                    setEmailTestResult(res.message || 'Weekly report digest sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#ecfdf5',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#6ee7b7',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#047857" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>
+                  {emailTestLoading === 'weekly' ? 'Sending...' : 'Weekly Digest Report'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
