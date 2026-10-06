@@ -1,20 +1,109 @@
-// Serverless function for Vercel: /api/send-reminder
+// Serverless function for Vercel & Cron: /api/send-reminder
+const fs = require('fs');
+const path = require('path');
+
+// Auto-load .env if present in parent directory
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+      const [key, ...rest] = trimmed.split('=');
+      const val = rest.join('=').trim();
+      if (!process.env[key.trim()]) {
+        process.env[key.trim()] = val;
+      }
+    }
+  });
+}
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://lsdrlcfyaltkjrzzhhqa.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZHJsY2Z5YWx0a2pyenpoaHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NTI1NjEsImV4cCI6MjEwNjMyODU2MX0.Cb9c218Ye2HeDvApM8DUUBbiqWgcwWUeX3tBL7YVllQ';
+
+async function fetchSupabasePendingItems(frequencyFilter = null) {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const rulesRes = await fetch(`${SUPABASE_URL}/rest/v1/fixed_expenses?select=*&active=eq.true`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+
+    if (!rulesRes.ok) return [];
+    const rules = await rulesRes.json();
+    if (!Array.isArray(rules) || rules.length === 0) return [];
+
+    const occRes = await fetch(`${SUPABASE_URL}/rest/v1/fixed_expense_occurrences?select=*&occurrence_date=eq.${today}`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+
+    const occurrences = occRes.ok ? await occRes.json() : [];
+
+    const pending = rules
+      .filter((r) => {
+        if (frequencyFilter && r.frequency !== frequencyFilter) return false;
+        const occ = (occurrences || []).find((o) => o.fixed_expense_id === r.id);
+        return !occ || occ.status === 'pending';
+      })
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        amount: Number(r.amount),
+        frequency: r.frequency,
+        category: r.category_name || 'Bills',
+      }));
+
+    return pending;
+  } catch (e) {
+    console.warn('Failed to fetch pending items from Supabase:', e.message);
+    return [];
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
-  }
-
   try {
-    const { slot = 'morning', to = 'selvanpragathish@gmail.com', items = [] } = req.body || {};
+    const query = req.query || {};
+    const body = req.body || {};
+
+    let slot = query.slot || body.slot || 'morning';
+    const to = query.to || body.to || process.env.DEFAULT_RECIPIENT || 'selvanpragathish@gmail.com';
+    let items = body.items || null;
+
     const resendApiKey = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY || '';
+
+    // Handle cycle_check cron slot
+    if (slot === 'cycle_check') {
+      const dayOfWeek = new Date().getDay();
+      if (dayOfWeek === 3) slot = 'mid_week';
+      else if (dayOfWeek === 6) slot = 'week_end';
+      else slot = 'morning';
+    }
+
+    const isMorning = slot === 'morning';
+    const isMonthEnd = slot === 'month_end';
+    const isMidWeek = slot === 'mid_week';
+    const isWeekEnd = slot === 'week_end';
+
+    let freqFilter = null;
+    if (isMonthEnd) freqFilter = 'monthly';
+    if (isMidWeek || isWeekEnd) freqFilter = 'weekly';
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      items = await fetchSupabasePendingItems(freqFilter);
+    }
 
     const dateStr = new Date().toLocaleDateString('en-IN', {
       weekday: 'long',
@@ -22,11 +111,6 @@ module.exports = async (req, res) => {
       month: 'short',
       year: 'numeric',
     });
-
-    const isMorning = slot === 'morning';
-    const isMonthEnd = slot === 'month_end';
-    const isMidWeek = slot === 'mid_week';
-    const isWeekEnd = slot === 'week_end';
 
     let greeting = isMorning ? 'Good morning' : 'Good evening';
     let timeLabel = isMorning ? '8:00 AM Daily Alert' : '6:00 PM Evening Check-In';
@@ -41,7 +125,7 @@ module.exports = async (req, res) => {
       greeting = 'Hello';
       timeLabel = '📅 Mid-Week Check-In (Day 3)';
       title = 'Mid-Week Pending Weekly Expenses Alert';
-      subtext = 'You are on Day 3 of your current 7-day budget week. You have unpaid weekly commitments due this week.';
+      subtext = 'You are on Day 3 of your current budget week. You have unpaid weekly commitments due this week.';
     } else if (isWeekEnd) {
       greeting = 'Hello';
       timeLabel = '⏳ 1 Day Left in Budget Week';
@@ -54,20 +138,21 @@ module.exports = async (req, res) => {
       subtext = 'Your monthly financial cycle is ending in 2 days. You have unpaid monthly fixed expenses that must be Paid or Skipped before closing the month.';
     }
 
-    const displayItems = items.length > 0 ? items : [
-      { name: 'Milk & Groceries', amount: 150, frequency: 'daily' },
-      { name: 'High-Speed Broadband', amount: 999, frequency: 'monthly' }
+    const displayItems = items && items.length > 0 ? items : [
+      { name: 'Active Recurring Commitments', amount: 0, frequency: 'daily' }
     ];
 
     const totalAmount = displayItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
-    const itemsHtml = displayItems.map((i) => `
-      <tr>
-        <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a;">${i.name}</td>
-        <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #64748b; text-transform: capitalize;">${i.frequency || 'Daily'}</td>
-        <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #059669; text-align: right;">₹${Number(i.amount).toLocaleString('en-IN')}</td>
-      </tr>
-    `).join('');
+    const itemsHtml = items && items.length > 0
+      ? displayItems.map((i) => `
+        <tr>
+          <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 600; color: #0f172a;">${i.name}</td>
+          <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #64748b; text-transform: capitalize;">${i.frequency || 'Daily'}</td>
+          <td style="padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; color: #059669; text-align: right;">₹${Number(i.amount).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('')
+      : `<tr><td colspan="3" style="padding: 16px; text-align: center; color: #64748b; font-style: italic;">All recurring expenses for today are already marked as Paid or Skipped!</td></tr>`;
 
     const html = `
 <!DOCTYPE html>
@@ -98,7 +183,7 @@ module.exports = async (req, res) => {
                   </td>
                   <td align="right">
                     <span style="background-color: #059669; color: #ffffff; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px;">
-                      ${displayItems.length} Pending Item${displayItems.length === 1 ? '' : 's'}
+                      ${items.length} Pending Item${items.length === 1 ? '' : 's'}
                     </span>
                   </td>
                 </tr>

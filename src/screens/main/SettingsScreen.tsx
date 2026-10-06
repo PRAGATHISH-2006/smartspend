@@ -463,13 +463,14 @@ export const SettingsScreen: React.FC<Props> = () => {
             ) : null}
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {/* 8:00 AM Morning Reminder */}
               <TouchableOpacity
                 onPress={async () => {
-                  setEmailTestLoading('fixed');
+                  setEmailTestLoading('morning');
                   setEmailTestResult(null);
                   try {
                     const res = await sendFixedRemindersEmail('morning');
-                    setEmailTestResult(res.message || 'Fixed expenses reminder sent!');
+                    setEmailTestResult(res.message || '8:00 AM Morning Reminder sent!');
                   } catch (e: any) {
                     setEmailTestResult(`Error: ${e.message}`);
                   } finally {
@@ -478,7 +479,39 @@ export const SettingsScreen: React.FC<Props> = () => {
                 }}
                 disabled={emailTestLoading !== null}
                 style={{
-                  backgroundColor: '#f1f5f9',
+                  backgroundColor: '#f0fdf4',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#86efac',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#15803d" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#15803d' }}>
+                  {emailTestLoading === 'morning' ? 'Sending...' : '⏰ 8:00 AM Morning Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 6:00 PM Evening Check-In */}
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('evening');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendFixedRemindersEmail('evening');
+                    setEmailTestResult(res.message || '6:00 PM Evening Check-in sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#f8fafc',
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderRadius: 8,
@@ -488,12 +521,77 @@ export const SettingsScreen: React.FC<Props> = () => {
                   alignItems: 'center',
                 }}
               >
-                <Send size={12} color="#0f172a" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0f172a' }}>
-                  {emailTestLoading === 'fixed' ? 'Sending...' : 'Fixed Expense Alert'}
+                <Send size={12} color="#334155" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>
+                  {emailTestLoading === 'evening' ? 'Sending...' : '🌙 6:00 PM Evening Alert'}
                 </Text>
               </TouchableOpacity>
 
+              {/* Mid-Week Day 3 Alert */}
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('mid_week');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendFixedRemindersEmail('mid_week');
+                    setEmailTestResult(res.message || 'Mid-Week reminder sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#eff6ff',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#93c5fd',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#1d4ed8" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#1d4ed8' }}>
+                  {emailTestLoading === 'mid_week' ? 'Sending...' : '📅 Mid-Week (Day 3) Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Month-End 2 Days Alert */}
+              <TouchableOpacity
+                onPress={async () => {
+                  setEmailTestLoading('month_end');
+                  setEmailTestResult(null);
+                  try {
+                    const res = await sendFixedRemindersEmail('month_end');
+                    setEmailTestResult(res.message || 'Month-End reminder sent!');
+                  } catch (e: any) {
+                    setEmailTestResult(`Error: ${e.message}`);
+                  } finally {
+                    setEmailTestLoading(null);
+                  }
+                }}
+                disabled={emailTestLoading !== null}
+                style={{
+                  backgroundColor: '#fdf2f8',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#f472b6',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <Send size={12} color="#be185d" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#be185d' }}>
+                  {emailTestLoading === 'month_end' ? 'Sending...' : '🚨 Month-End (2-Day) Alert'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Low Balance Alert */}
               <TouchableOpacity
                 onPress={async () => {
                   setEmailTestLoading('low_balance');
@@ -521,10 +619,11 @@ export const SettingsScreen: React.FC<Props> = () => {
               >
                 <Send size={12} color="#dc2626" style={{ marginRight: 6 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#dc2626' }}>
-                  {emailTestLoading === 'low_balance' ? 'Sending...' : 'Low Balance Alert'}
+                  {emailTestLoading === 'low_balance' ? 'Sending...' : '⚠️ Low Balance Alert'}
                 </Text>
               </TouchableOpacity>
 
+              {/* 5-Day Remaining Cycle Alert */}
               <TouchableOpacity
                 onPress={async () => {
                   setEmailTestLoading('5day');
@@ -552,10 +651,11 @@ export const SettingsScreen: React.FC<Props> = () => {
               >
                 <Send size={12} color="#c2410c" style={{ marginRight: 6 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#c2410c' }}>
-                  {emailTestLoading === '5day' ? 'Sending...' : '5-Day Cycle Alert'}
+                  {emailTestLoading === '5day' ? 'Sending...' : '⏳ 5-Day Cycle Alert'}
                 </Text>
               </TouchableOpacity>
 
+              {/* Weekly Digest */}
               <TouchableOpacity
                 onPress={async () => {
                   if (!user?.id) return;
@@ -584,7 +684,7 @@ export const SettingsScreen: React.FC<Props> = () => {
               >
                 <Send size={12} color="#047857" style={{ marginRight: 6 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>
-                  {emailTestLoading === 'weekly' ? 'Sending...' : 'Weekly Digest Report'}
+                  {emailTestLoading === 'weekly' ? 'Sending...' : '📊 Weekly Digest Report'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -1,19 +1,35 @@
 // Serverless function for Vercel: /api/send-alert
+const fs = require('fs');
+const path = require('path');
+
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+      const [key, ...rest] = trimmed.split('=');
+      const val = rest.join('=').trim();
+      if (!process.env[key.trim()]) {
+        process.env[key.trim()] = val;
+      }
+    }
+  });
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
-  }
-
   try {
-    const { alertType, to = 'selvanpragathish@gmail.com', data = {} } = req.body || {};
+    const payload = req.method === 'GET' ? (req.query || {}) : (req.body || {});
+    const { alertType = 'low_balance', to = process.env.DEFAULT_RECIPIENT || 'selvanpragathish@gmail.com' } = payload;
+    const data = payload.data || payload;
     const resendApiKey = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY || '';
 
     let subject = '⚠️ SmartSpend Alert';
@@ -32,7 +48,7 @@ module.exports = async (req, res) => {
     </div>
     <div style="padding: 24px;">
       <p>Hello <strong>${data.userName || 'SmartSpend User'}</strong>,</p>
-      <p>Your current wallet balance is <strong>₹${Number(data.currentBalance || 0).toLocaleString('en-IN')}</strong>, which has dropped below your minimum threshold of <strong>₹${Number(data.threshold || 0).toLocaleString('en-IN')}</strong>.</p>
+      <p>Your current wallet balance is <strong>₹${Number(data.currentBalance || 0).toLocaleString('en-IN')}</strong>, which has dropped below your minimum threshold of <strong>₹${Number(data.threshold || 2000).toLocaleString('en-IN')}</strong>.</p>
       <p>Safe to spend: <strong>₹${Number(data.safeToSpend || 0).toLocaleString('en-IN')}</strong></p>
       <div style="text-align: center; margin-top: 24px;">
         <a href="https://smartspend-two.vercel.app" style="background: #dc2626; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Open SmartSpend</a>

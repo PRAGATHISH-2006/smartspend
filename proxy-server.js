@@ -583,7 +583,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Instant or test reminder trigger
-  if (req.method === 'POST' && req.url === '/api/send-reminder') {
+  if ((req.method === 'POST' || req.method === 'GET') && req.url.startsWith('/api/send-reminder')) {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
@@ -598,8 +598,10 @@ const server = http.createServer(async (req, res) => {
           console.warn('[send-reminder] JSON parse error:', jErr.message);
         }
 
-        const slot = parsed.slot || (new Date().getHours() < 12 ? 'morning' : 'evening');
-        const to = parsed.to || DEFAULT_RECIPIENT;
+        // Also check URL query params
+        const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
+        const slot = parsed.slot || parsedUrl.searchParams.get('slot') || (new Date().getHours() < 12 ? 'morning' : 'evening');
+        const to = parsed.to || parsedUrl.searchParams.get('to') || DEFAULT_RECIPIENT;
         const customItems = parsed.items;
 
         const result = await dispatchReminderEmail(slot, to, true, customItems);
@@ -627,7 +629,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Generic Alert trigger (Low Balance, 5-Day Cycle Warning, etc.)
-  if (req.method === 'POST' && req.url === '/api/send-alert') {
+  if ((req.method === 'POST' || req.method === 'GET') && req.url.startsWith('/api/send-alert')) {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
