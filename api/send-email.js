@@ -37,7 +37,17 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { to, subject, html, attachments } = req.body || {};
+    const { to, subject, html, attachments, force } = req.body || {};
+
+    // Stop sending emails
+    if (process.env.ENABLE_EMAILS !== 'true') {
+      return res.status(200).json({
+        success: true,
+        stopped: true,
+        message: 'Email sending has been stopped.',
+      });
+    }
+
     const resendApiKey = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY || '';
     const fromSender = process.env.EXPO_PUBLIC_RESEND_FROM || 'SmartSpend <onboarding@resend.dev>';
     const fallbackTo = process.env.DEFAULT_RECIPIENT || 'selvanpragathish@gmail.com';

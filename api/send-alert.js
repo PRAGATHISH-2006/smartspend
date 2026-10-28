@@ -28,6 +28,16 @@ module.exports = async (req, res) => {
 
   try {
     const payload = req.method === 'GET' ? (req.query || {}) : (req.body || {});
+
+    // Stop sending email alerts
+    if (process.env.ENABLE_EMAILS !== 'true') {
+      return res.status(200).json({
+        success: true,
+        stopped: true,
+        message: 'Email alerts are stopped.',
+      });
+    }
+
     const { alertType = 'low_balance', to = process.env.DEFAULT_RECIPIENT || 'selvanpragathish@gmail.com' } = payload;
     const data = payload.data || payload;
     const resendApiKey = process.env.RESEND_API_KEY || process.env.EXPO_PUBLIC_RESEND_API_KEY || '';

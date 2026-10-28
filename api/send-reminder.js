@@ -74,6 +74,15 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
+  // Stop sending automated reminder emails
+  if (process.env.ENABLE_EMAILS !== 'true') {
+    return res.status(200).json({
+      success: true,
+      stopped: true,
+      message: 'Automated email reminders are stopped.',
+    });
+  }
+
   try {
     const query = req.query || {};
     const body = req.body || {};

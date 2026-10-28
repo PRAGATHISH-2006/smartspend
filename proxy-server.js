@@ -353,6 +353,12 @@ async function dispatchReminderEmail(
   isTest = false,
   customItems = null
 ) {
+  // Check if automated emails are disabled
+  if (process.env.ENABLE_EMAILS !== 'true' && !isTest) {
+    console.log(`[Reminder] Email sending is stopped (ENABLE_EMAILS!=true). Slot: ${slot} skipped.`);
+    return { ok: true, data: { message: 'Emails stopped by configuration' } };
+  }
+
   const isMonthEnd = slot === 'month_end';
   const isMidWeek = slot === 'mid_week';
   const isWeekEnd = slot === 'week_end';
@@ -498,8 +504,8 @@ async function checkScheduledReminders() {
   }
 }
 
-// Check every 60 seconds
-setInterval(checkScheduledReminders, 60 * 1000);
+// Automated scheduler interval disabled to stop sending emails
+// setInterval(checkScheduledReminders, 60 * 1000);
 
 // HTTP Server
 const server = http.createServer(async (req, res) => {
@@ -529,7 +535,15 @@ const server = http.createServer(async (req, res) => {
           console.warn('[send-email] JSON parse error:', jErr.message);
         }
 
-        const { to, subject, html, attachments } = parsed;
+        const { to, subject, html, attachments, force } = parsed;
+
+        if (process.env.ENABLE_EMAILS !== 'true') {
+          console.log('[Email Proxy] Email sending is stopped. Request blocked.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Email sending is stopped.', delivered: false }));
+          return;
+        }
+
         const target = to || DEFAULT_RECIPIENT;
         const recipient = Array.isArray(target) ? target : [target];
 
@@ -603,6 +617,17 @@ const server = http.createServer(async (req, res) => {
         const slot = parsed.slot || parsedUrl.searchParams.get('slot') || (new Date().getHours() < 12 ? 'morning' : 'evening');
         const to = parsed.to || parsedUrl.searchParams.get('to') || DEFAULT_RECIPIENT;
         const customItems = parsed.items;
+        const force = parsed.force || parsedUrl.searchParams.get('force') === 'true';
+
+        if (process.env.ENABLE_EMAILS !== 'true') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            message: 'Email reminders are stopped.',
+            delivered: false,
+          }));
+          return;
+        }
 
         const result = await dispatchReminderEmail(slot, to, true, customItems);
 
@@ -642,6 +667,16 @@ const server = http.createServer(async (req, res) => {
           if (body && body.trim()) parsed = JSON.parse(body);
         } catch (jErr) {
           console.warn('[send-alert] JSON parse error:', jErr.message);
+        }
+
+        if (process.env.ENABLE_EMAILS !== 'true') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            message: 'Email alerts are stopped.',
+            delivered: false,
+          }));
+          return;
         }
 
         const { alertType = 'low_balance', to = DEFAULT_RECIPIENT, data = {} } = parsed;

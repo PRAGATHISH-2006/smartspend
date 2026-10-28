@@ -242,6 +242,17 @@ serve(async (req) => {
   }
 
   try {
+    if (Deno.env.get("ENABLE_EMAILS") !== "true") {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          stopped: true,
+          message: "Email sending is stopped.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const resendApiKey = Deno.env.get("RESEND_API_KEY") ?? "";

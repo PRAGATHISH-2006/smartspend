@@ -481,6 +481,13 @@ async function dispatchReportInternal(params: {
 }): Promise<EmailReportSendResult> {
   const { userId, startDate, endDate, reportType } = params;
 
+  if (process.env.EXPO_PUBLIC_ENABLE_EMAILS !== 'true' && process.env.ENABLE_EMAILS !== 'true') {
+    return {
+      success: false,
+      message: 'Email sending is stopped.',
+    };
+  }
+
   try {
     const compiled = await compileUserReport({
       userId,
@@ -649,6 +656,11 @@ export async function dispatchEmailDirectly(params: {
   attachments?: Array<{ filename: string; content: string }>;
 }): Promise<{ success: boolean; id?: string; message: string; error?: string }> {
   const { to, subject, html, attachments } = params;
+
+  if (process.env.EXPO_PUBLIC_ENABLE_EMAILS !== 'true' && process.env.ENABLE_EMAILS !== 'true') {
+    return { success: false, message: 'Email sending is stopped.', error: 'Emails disabled' };
+  }
+
   const cleanTo = (to || '').trim();
   if (!cleanTo) {
     return { success: false, message: 'No recipient email specified', error: 'Missing recipient' };

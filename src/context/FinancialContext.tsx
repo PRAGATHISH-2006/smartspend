@@ -545,16 +545,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           title: '⚠️ Low Balance Alert',
           message: `Your balance is ₹${newBalance.toFixed(2)}, which is below your threshold of ₹${summary.lowBalanceThreshold}.`,
         });
-
-        // Dispatch immediate email alert
-        sendLowBalanceEmailAlert({
-          userId: user.id,
-          currentBalance: newBalance,
-          threshold: summary.lowBalanceThreshold,
-          safeToSpend: Math.max(0, newBalance - summary.upcomingFixedExpenses),
-        }).catch((emailErr) => {
-          console.warn('Low balance email dispatch notice:', emailErr);
-        });
       }
 
       return { error: null };
@@ -1311,73 +1301,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       upcomingFixedExpenses: summary.upcomingFixedExpenses,
     });
   };
-
-  // Automated in-app scheduler & alert verification
-  useEffect(() => {
-    if (!user?.id || loading) return;
-
-    const performAutomatedAlertChecks = async () => {
-      try {
-        const now = new Date();
-        const currentHour = now.getHours();
-        const todayDateStr = getTodayDateString();
-
-        // 1. Morning Daily 8:00 AM Reminder Check
-        if (currentHour >= 8) {
-          const morningKey = `reminder_morning_${user.id}_${todayDateStr}`;
-          const morningSent = await AsyncStorage.getItem(morningKey);
-          if (!morningSent) {
-            await AsyncStorage.setItem(morningKey, new Date().toISOString());
-            sendFixedRemindersEmail('morning').catch((e) =>
-              console.warn('[Auto-Scheduler] Morning reminder dispatch notice:', e)
-            );
-          }
-        }
-
-        // 2. Evening Daily 6:00 PM Reminder Check
-        if (currentHour >= 18) {
-          const eveningKey = `reminder_evening_${user.id}_${todayDateStr}`;
-          const eveningSent = await AsyncStorage.getItem(eveningKey);
-          if (!eveningSent) {
-            await AsyncStorage.setItem(eveningKey, new Date().toISOString());
-            sendFixedRemindersEmail('evening').catch((e) =>
-              console.warn('[Auto-Scheduler] Evening reminder dispatch notice:', e)
-            );
-          }
-        }
-
-        // 3. Low Balance Check
-        if (summary.currentBalance > 0 && summary.currentBalance <= summary.lowBalanceThreshold) {
-          const lowKey = `alert_low_balance_${user.id}_${todayDateStr}`;
-          const lowSent = await AsyncStorage.getItem(lowKey);
-          if (!lowSent) {
-            await AsyncStorage.setItem(lowKey, new Date().toISOString());
-            sendLowBalanceEmailAlertNow().catch((e) =>
-              console.warn('[Auto-Scheduler] Low balance dispatch notice:', e)
-            );
-          }
-        }
-
-        // 4. 5-Day Remaining Cycle Alert Check
-        if (summary.daysRemaining <= 5 && summary.daysRemaining > 0) {
-          const cycleKey = `alert_cycle_ending_${user.id}_${budgetSettings?.custom_end_date || todayDateStr.slice(0, 7)}`;
-          const cycleSent = await AsyncStorage.getItem(cycleKey);
-          if (!cycleSent) {
-            await AsyncStorage.setItem(cycleKey, new Date().toISOString());
-            sendCycleEndingEmailAlertNow().catch((e) =>
-              console.warn('[Auto-Scheduler] Cycle ending dispatch notice:', e)
-            );
-          }
-        }
-      } catch (err) {
-        console.warn('Auto-scheduler check error:', err);
-      }
-    };
-
-    performAutomatedAlertChecks();
-    const intervalTimer = setInterval(performAutomatedAlertChecks, 5 * 60 * 1000);
-    return () => clearInterval(intervalTimer);
-  }, [user?.id, loading, summary.currentBalance, summary.lowBalanceThreshold, summary.daysRemaining]);
 
   return (
     <FinancialContext.Provider
