@@ -242,9 +242,6 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         totalMoneyAdded={summary.totalMoneyAdded}
         totalExpenses={summary.totalExpenses}
         currentBalance={summary.currentBalance}
-        todayFixedExpenses={todayFixedExpenses}
-        onPayFixedExpense={payFixedExpense}
-        onSkipFixedExpense={skipFixedExpense}
         onClose={() => setShowCloseMonth(false)}
         onConfirmClose={async () => {
           return await closeCurrentMonth();

@@ -26,6 +26,7 @@ import { evaluateFinancialSummary } from '../utils/financialCalculations';
 import { getTodayDateString, getDaysRemainingInPeriod } from '../utils/dateUtils';
 import { createInAppNotification } from '../services/notificationService';
 import { getCategoryMeta, DEFAULT_CATEGORIES } from '../constants/categories';
+import { formatINR } from '../utils/currency';
 import {
   triggerMonthCloseStatementEmail,
   generateTransactionsCsv,
@@ -102,7 +103,7 @@ interface FinancialContextType {
   closeCurrentMonth: () => Promise<{
     success: boolean;
     rolloverAmount: number;
-    driveFolderUrl: string;
+    driveFolderUrl?: string;
     pdfFilename?: string;
     pdfBase64?: string;
     driveUploadSuccess?: boolean;
@@ -169,9 +170,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Filter occurrences belonging to current active cycle
     const activeCycleOccurrences = rolloverCutoffTime > 0
       ? existingOccurrences.filter((o) => {
-          const occTime = new Date(o.created_at || o.occurrence_date).getTime();
-          return occTime >= rolloverCutoffTime;
-        })
+        const occTime = new Date(o.created_at || o.occurrence_date).getTime();
+        return occTime >= rolloverCutoffTime;
+      })
       : existingOccurrences;
 
     for (const rule of activeRules) {
@@ -369,7 +370,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (cachedClosed) {
           try {
             setClosedMonths(JSON.parse(cachedClosed));
-          } catch {}
+          } catch { }
         }
 
         const { data: remoteClosed } = await supabase
@@ -973,11 +974,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Close Current Month, Rollover Surplus, Backup to Google Drive, and Dispatch Statement
+  // Close Current Month and Rollover Surplus to Next Cycle
   const closeCurrentMonth = async (): Promise<{
     success: boolean;
     rolloverAmount: number;
-    driveFolderUrl: string;
+    driveFolderUrl?: string;
     pdfFilename?: string;
     pdfBase64?: string;
     driveUploadSuccess?: boolean;
@@ -988,13 +989,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return {
         success: false,
         rolloverAmount: 0,
-        driveFolderUrl: '',
         error: 'User not logged in',
       };
     }
-
-    const DRIVE_FOLDER_URL =
-      'https://drive.google.com/drive/folders/1AJzY39IKyCTR0d7HspLN0bMk609kITT2?usp=sharing';
 
     try {
       const today = new Date();
@@ -1012,521 +1009,384 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         budgetSettings?.custom_end_date || format(currentPeriod.periodEnd, 'yyyy-MM-dd');
       const closingBalance = summary.currentBalance;
       const rolloverAmount = Math.max(0, closingBalance);
+      const monthDisplay = format(today, 'MMMM yyyy');
 
-      // 1. Generate transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf) for Drive and Email
-      const monthName = format(today, 'MMMM_yyyy'); // e.g. "October_2026"
-      const monthDisplay = format(today, 'MMMM yyyy'); // e.g. "October 2026"
-      let pdfFilename = `${monthName}_Transactions.pdf`;
-      let pdfBase64 = '';
-      let driveUploadSuccess = false;
-
-      // 2. Snapshot and archive closed month details into Reports section storage
-      const closedRecord: ClosedMonthRecord = {
-        id: `closed_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        userId: user.id,
-        monthName: monthDisplay,
-        periodStart: startDateStr,
-        periodEnd: endDateStr,
-        totalMoneyAdded: summary.totalMoneyAdded,
-        totalWithdrawn: summary.totalExpenses,
-        closingBalance: summary.currentBalance,
-        rolloverAmount,
-        closedAt: new Date().toISOString(),
-        transactionsCount: unifiedTransactions.length,
-        transactions: [...unifiedTransactions],
-        categoryBreakdown: [...categoryBreakdown],
-        pdfFilename,
-        driveFolderUrl: DRIVE_FOLDER_URL,
-      };
-
-      const updatedClosedMonths = [
-        closedRecord,
-        ...closedMonths.filter((m) => m.id !== closedRecord.id),
-      ];
-      setClosedMonths(updatedClosedMonths);
-      await AsyncStorage.setItem(
-        `smartspend_closed_months_${user.id}`,
-        JSON.stringify(updatedClosedMonths)
-      );
-
-      try {
-        await supabase.from('closed_months').upsert({
-          id: closedRecord.id,
-          user_id: user.id,
-          month_name: closedRecord.monthName,
-          period_start: closedRecord.periodStart,
-          period_end: closedRecord.periodEnd,
-          total_money_added: closedRecord.totalMoneyAdded,
-          total_withdrawn: closedRecord.totalWithdrawn,
-          closing_balance: closedRecord.closingBalance,
-          transactions: closedRecord.transactions,
-          category_breakdown: closedRecord.categoryBreakdown,
-          closed_at: closedRecord.closedAt,
-        });
-      } catch (e) {
-        // Fallback silently if offline or remote table not created
-      }
-
-      try {
-        const pdfResult = generateMonthStatementPdf({
-          monthName,
-          monthDisplay,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          startingBalance: summary.totalMoneyAdded,
-          totalMoneyAdded: summary.totalMoneyAdded,
-          totalExpenses: summary.totalExpenses,
-          closingBalance,
-          rolloverAmount,
-          recipientEmail: user.email || 'selvanpragathish@gmail.com',
-          transactions: unifiedTransactions,
-          categoryBreakdown,
-        });
-
-        pdfFilename = pdfResult.filename;
-        pdfBase64 = pdfResult.base64;
-
-        // Attempt automated background upload to Google Drive right away
-        try {
-          const savedWebhook = (await AsyncStorage.getItem('gdrive_webhook_url')) || undefined;
-          const driveRes = await uploadPdfToGoogleDrive({
-            filename: pdfResult.filename,
-            base64: pdfResult.base64,
-            webhookUrl: savedWebhook,
+          // 1. Transfer remaining surplus to next month's wallet and log transaction
+          if(rolloverAmount > 0) {
+          await supabase.from('money_additions').insert({
+            user_id: user.id,
+            amount: rolloverAmount,
+            description: `Rollover Surplus from Closed Month (${startDateStr} to ${endDateStr})`,
+            payment_method: 'Month-End Rollover',
           });
-          driveUploadSuccess = !!driveRes.success;
-          console.log('[Drive Auto-Upload Result]', driveRes);
-        } catch (upErr) {
-          console.warn('Auto drive upload error:', upErr);
         }
-      } catch (pdfErr) {
-        console.warn('PDF generation error:', pdfErr);
-      }
 
-      // 3. Dispatch Month-End Closed Statement to user's email with Drive Link & Attached PDF
-      try {
-        await triggerMonthCloseStatementEmail({
-          userId: user.id,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          rolloverAmount,
-          driveFolderUrl: DRIVE_FOLDER_URL,
-          pdfFilename,
-          pdfBase64,
+        // 2. Reset active budget cycle to start fresh from today
+        const newStartDateStr = getTodayDateString(today);
+        const newEndDateStr = format(endOfMonth(today), 'yyyy-MM-dd');
+
+        await updateBudgetSettings({
+          period_type: 'monthly',
+          cycle_start_day: 1,
+          custom_start_date: newStartDateStr,
+          custom_end_date: newEndDateStr,
         });
-      } catch (emailErr) {
-        console.warn('Statement email error:', emailErr);
+
+        // 3. In-app notification
+        await createInAppNotification({
+          userId: user.id,
+          type: 'INFO',
+          title: 'Month Successfully Closed 📅',
+          message: `${monthDisplay} is closed! ${rolloverAmount > 0
+              ? `${formatINR(rolloverAmount)} unspent surplus has been rolled over into your wallet.`
+              : 'New budget cycle started.'
+            }`,
+        });
+
+        await fetchData();
+
+        return {
+          success: true,
+          rolloverAmount,
+          message: `${monthDisplay} closed! ${rolloverAmount > 0
+              ? `${formatINR(rolloverAmount)} surplus rolled over.`
+              : 'New budget cycle started.'
+            }`,
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          rolloverAmount: 0,
+          error: err.message || String(err),
+        };
       }
+    };
 
-      // 4. CLEAR ALL ACTIVE DATA TO START FRESH FROM FIRST
-      await Promise.all([
-        supabase.from('expenses').delete().eq('user_id', user.id),
-        supabase.from('money_additions').delete().eq('user_id', user.id),
-        supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
-      ]);
+    const deleteClosedMonth = async (id: string): Promise<{ error: Error | null }> => {
+      if (!user?.id) return { error: new Error('User not logged in') };
+      try {
+        const updated = closedMonths.filter((m) => m.id !== id);
+        setClosedMonths(updated);
+        await AsyncStorage.setItem(
+          `smartspend_closed_months_${user.id}`,
+          JSON.stringify(updated)
+        );
+        try {
+          await supabase.from('closed_months').delete().eq('id', id).eq('user_id', user.id);
+        } catch { }
+        return { error: null };
+      } catch (err: any) {
+        return { error: err };
+      }
+    };
 
-      // 5. Reset active budget cycle to start fresh from today
-      const newStartDateStr = getTodayDateString(today);
-      const newEndDateStr = format(endOfMonth(today), 'yyyy-MM-dd');
+    // Demo Dataset Loader (Milk ₹60/day, Bus ₹40/day, Netflix ₹199/month, Lunch ₹200, Shopping ₹500, Wallet ₹10,000)
+    const loadDemoData = async (): Promise<{ success: boolean; error?: string }> => {
+      if (!user?.id) return { success: false, error: 'User not logged in' };
 
-      await updateBudgetSettings({
-        period_type: 'monthly',
-        cycle_start_day: 1,
-        custom_start_date: newStartDateStr,
-        custom_end_date: newEndDateStr,
-      });
+      try {
+        const todayStr = getTodayDateString();
 
-      // 6. Generate fresh pending occurrences for all active recurring expenses in the new cycle
-      const activeRules = fixedExpenses.filter((r) => r.active);
-      if (activeRules.length > 0) {
-        for (const rule of activeRules) {
+        // Seed a sample previous month (September 2026) if none exists so reports section demonstrates closed month details immediately
+        if (closedMonths.length === 0) {
+          const demoClosedMonth: ClosedMonthRecord = {
+            id: `closed_demo_${Date.now()}`,
+            userId: user.id,
+            monthName: 'September 2026',
+            periodStart: '2026-09-01',
+            periodEnd: '2026-09-30',
+            totalMoneyAdded: 25000,
+            totalWithdrawn: 16790,
+            closingBalance: 8210,
+            rolloverAmount: 8210,
+            closedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+            transactionsCount: 5,
+            transactions: [
+              {
+                id: 'demo_add_1',
+                name: 'Monthly Salary Deposit',
+                amount: 25000,
+                category: 'Top-up',
+                date: '2026-09-01',
+                type: 'money_added',
+                rawType: 'income',
+                notes: 'Direct Bank Transfer / Salary',
+              },
+              {
+                id: 'demo_exp_1',
+                name: 'House Rent & Maintenance',
+                amount: 10000,
+                category: 'Housing',
+                date: '2026-09-05',
+                type: 'manual_expense',
+                rawType: 'expense',
+                notes: 'UPI Transfer',
+              },
+              {
+                id: 'demo_exp_2',
+                name: 'Monthly Supermarket Groceries',
+                amount: 4500,
+                category: 'Groceries',
+                date: '2026-09-12',
+                type: 'manual_expense',
+                rawType: 'expense',
+                notes: 'Credit Card',
+              },
+              {
+                id: 'demo_exp_3',
+                name: 'Electricity & Broadband Bill',
+                amount: 1600,
+                category: 'Utilities',
+                date: '2026-09-18',
+                type: 'fixed_expense',
+                rawType: 'expense',
+                notes: 'Auto-debit',
+              },
+              {
+                id: 'demo_exp_4',
+                name: 'Netflix 4K & Spotify Premium',
+                amount: 690,
+                category: 'Entertainment',
+                date: '2026-09-25',
+                type: 'fixed_expense',
+                rawType: 'expense',
+                notes: 'Recurring Subscription',
+              },
+            ],
+            categoryBreakdown: [
+              { name: 'Housing', amount: 10000, percentage: 60, color: '#3B82F6', icon: 'Home' },
+              { name: 'Groceries', amount: 4500, percentage: 27, color: '#10B981', icon: 'ShoppingBag' },
+              { name: 'Utilities', amount: 1600, percentage: 9, color: '#F59E0B', icon: 'Zap' },
+              { name: 'Entertainment', amount: 690, percentage: 4, color: '#8B5CF6', icon: 'Film' },
+            ],
+          };
+          const updated = [demoClosedMonth];
+          setClosedMonths(updated);
+          await AsyncStorage.setItem(`smartspend_closed_months_${user.id}`, JSON.stringify(updated));
+        }
+
+        // 1. Add Wallet Money ₹10,000
+        await supabase.from('money_additions').insert({
+          user_id: user.id,
+          amount: 10000,
+          description: 'Initial Wallet Balance',
+          payment_method: 'UPI / NetBanking',
+        });
+
+        // 2. Add Fixed Expenses (Milk ₹60 Daily, Bus ₹40 Daily, Netflix ₹199 Monthly)
+        const { data: fixedCreated } = await supabase
+          .from('fixed_expenses')
+          .insert([
+            {
+              user_id: user.id,
+              name: 'Milk',
+              amount: 60,
+              category_name: 'Groceries',
+              frequency: 'daily',
+              start_date: todayStr,
+              active: true,
+            },
+            {
+              user_id: user.id,
+              name: 'Bus',
+              amount: 40,
+              category_name: 'Transport',
+              frequency: 'daily',
+              start_date: todayStr,
+              active: true,
+            },
+            {
+              user_id: user.id,
+              name: 'Netflix Subscription',
+              amount: 199,
+              category_name: 'Entertainment',
+              frequency: 'monthly',
+              start_date: todayStr,
+              active: true,
+            },
+          ])
+          .select('*');
+
+        // 3. Create today's occurrences for Milk and Bus
+        if (fixedCreated) {
+          const occInserts = fixedCreated.map((rule) => ({
+            fixed_expense_id: rule.id,
+            user_id: user.id,
+            occurrence_date: todayStr,
+            amount: rule.amount,
+            status: 'pending' as const,
+          }));
+
           await supabase
             .from('fixed_expense_occurrences')
-            .upsert(
-              {
-                fixed_expense_id: rule.id,
-                user_id: user.id,
-                occurrence_date: newStartDateStr,
-                amount: rule.amount,
-                status: 'pending' as const,
-                processed_at: null,
-                created_at: new Date().toISOString(),
-              },
-              { onConflict: 'fixed_expense_id,occurrence_date' }
-            );
+            .insert(occInserts)
+            .select('*');
         }
+
+        // 4. Add Manual Expenses: Lunch ₹200, Shopping ₹500
+        await supabase.from('expenses').insert([
+          {
+            user_id: user.id,
+            amount: 200,
+            category_name: 'Food',
+            description: 'Lunch with colleagues',
+            expense_date: todayStr,
+          },
+          {
+            user_id: user.id,
+            amount: 500,
+            category_name: 'Shopping',
+            description: 'Weekend Shopping Essentials',
+            expense_date: todayStr,
+          },
+        ]);
+
+        await fetchData();
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || String(err) };
       }
+    };
 
-      // 7. Reset in-memory active states
-      setMoneyAdditions([]);
-      setManualExpenses([]);
-      setOccurrences([]);
+    // Reset all user data
+    const resetUserData = async (): Promise<{ success: boolean; error?: string }> => {
+      if (!user?.id) return { success: false, error: 'User not logged in' };
 
-      // 8. In-app notification
-      await createInAppNotification({
-        userId: user.id,
-        type: 'INFO',
-        title: 'Month Successfully Closed 📁',
-        message: `${monthDisplay} is closed! All active transactions have been cleared to start fresh from first. Your closed month details are stored in the Reports section.`,
-      });
-
-      // 6. Open Drive link in browser
       try {
-        if (typeof window !== 'undefined') {
-          window.open(DRIVE_FOLDER_URL, '_blank');
-        } else {
-          Linking.openURL(DRIVE_FOLDER_URL);
-        }
-      } catch {
-        // Fallback
+        await Promise.all([
+          supabase.from('money_additions').delete().eq('user_id', user.id),
+          supabase.from('expenses').delete().eq('user_id', user.id),
+          supabase.from('fixed_expenses').delete().eq('user_id', user.id),
+          supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
+          supabase.from('notifications').delete().eq('user_id', user.id),
+          supabase.from('weekly_reports').delete().eq('user_id', user.id),
+          supabase.from('budget_settings').delete().eq('user_id', user.id),
+        ]);
+
+        try {
+          await AsyncStorage.removeItem(`budget_settings_${user.id}`);
+          await AsyncStorage.removeItem(`smartspend_closed_months_${user.id}`);
+        } catch { }
+
+        setMoneyAdditions([]);
+        setManualExpenses([]);
+        setFixedExpenses([]);
+        setOccurrences([]);
+        setBudgetSettings(null);
+        setClosedMonths([]);
+
+        await fetchData();
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || String(err) };
       }
+    };
 
-      await fetchData();
-
-      return {
-        success: true,
-        rolloverAmount,
-        driveFolderUrl: DRIVE_FOLDER_URL,
-        pdfFilename,
-        pdfBase64,
-        driveUploadSuccess,
-        message: `${monthDisplay} closed! All data cleared to start fresh from first. Closed month details are stored in Reports.`,
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        rolloverAmount: 0,
-        driveFolderUrl: DRIVE_FOLDER_URL,
-        error: err.message || String(err),
-      };
-    }
-  };
-
-  const deleteClosedMonth = async (id: string): Promise<{ error: Error | null }> => {
-    if (!user?.id) return { error: new Error('User not logged in') };
-    try {
-      const updated = closedMonths.filter((m) => m.id !== id);
-      setClosedMonths(updated);
-      await AsyncStorage.setItem(
-        `smartspend_closed_months_${user.id}`,
-        JSON.stringify(updated)
-      );
-      try {
-        await supabase.from('closed_months').delete().eq('id', id).eq('user_id', user.id);
-      } catch {}
-      return { error: null };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
-  // Demo Dataset Loader (Milk ₹60/day, Bus ₹40/day, Netflix ₹199/month, Lunch ₹200, Shopping ₹500, Wallet ₹10,000)
-  const loadDemoData = async (): Promise<{ success: boolean; error?: string }> => {
-    if (!user?.id) return { success: false, error: 'User not logged in' };
-
-    try {
-      const todayStr = getTodayDateString();
-
-      // Seed a sample previous month (September 2026) if none exists so reports section demonstrates closed month details immediately
-      if (closedMonths.length === 0) {
-        const demoClosedMonth: ClosedMonthRecord = {
-          id: `closed_demo_${Date.now()}`,
-          userId: user.id,
-          monthName: 'September 2026',
-          periodStart: '2026-09-01',
-          periodEnd: '2026-09-30',
-          totalMoneyAdded: 25000,
-          totalWithdrawn: 16790,
-          closingBalance: 8210,
-          rolloverAmount: 8210,
-          closedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-          transactionsCount: 5,
-          transactions: [
-            {
-              id: 'demo_add_1',
-              name: 'Monthly Salary Deposit',
-              amount: 25000,
-              category: 'Top-up',
-              date: '2026-09-01',
-              type: 'money_added',
-              rawType: 'income',
-              notes: 'Direct Bank Transfer / Salary',
-            },
-            {
-              id: 'demo_exp_1',
-              name: 'House Rent & Maintenance',
-              amount: 10000,
-              category: 'Housing',
-              date: '2026-09-05',
-              type: 'manual_expense',
-              rawType: 'expense',
-              notes: 'UPI Transfer',
-            },
-            {
-              id: 'demo_exp_2',
-              name: 'Monthly Supermarket Groceries',
-              amount: 4500,
-              category: 'Groceries',
-              date: '2026-09-12',
-              type: 'manual_expense',
-              rawType: 'expense',
-              notes: 'Credit Card',
-            },
-            {
-              id: 'demo_exp_3',
-              name: 'Electricity & Broadband Bill',
-              amount: 1600,
-              category: 'Utilities',
-              date: '2026-09-18',
-              type: 'fixed_expense',
-              rawType: 'expense',
-              notes: 'Auto-debit',
-            },
-            {
-              id: 'demo_exp_4',
-              name: 'Netflix 4K & Spotify Premium',
-              amount: 690,
-              category: 'Entertainment',
-              date: '2026-09-25',
-              type: 'fixed_expense',
-              rawType: 'expense',
-              notes: 'Recurring Subscription',
-            },
-          ],
-          categoryBreakdown: [
-            { name: 'Housing', amount: 10000, percentage: 60, color: '#3B82F6', icon: 'Home' },
-            { name: 'Groceries', amount: 4500, percentage: 27, color: '#10B981', icon: 'ShoppingBag' },
-            { name: 'Utilities', amount: 1600, percentage: 9, color: '#F59E0B', icon: 'Zap' },
-            { name: 'Entertainment', amount: 690, percentage: 4, color: '#8B5CF6', icon: 'Film' },
-          ],
-        };
-        const updated = [demoClosedMonth];
-        setClosedMonths(updated);
-        await AsyncStorage.setItem(`smartspend_closed_months_${user.id}`, JSON.stringify(updated));
-      }
-
-      // 1. Add Wallet Money ₹10,000
-      await supabase.from('money_additions').insert({
-        user_id: user.id,
-        amount: 10000,
-        description: 'Initial Wallet Balance',
-        payment_method: 'UPI / NetBanking',
-      });
-
-      // 2. Add Fixed Expenses (Milk ₹60 Daily, Bus ₹40 Daily, Netflix ₹199 Monthly)
-      const { data: fixedCreated } = await supabase
-        .from('fixed_expenses')
-        .insert([
-          {
-            user_id: user.id,
-            name: 'Milk',
-            amount: 60,
-            category_name: 'Groceries',
-            frequency: 'daily',
-            start_date: todayStr,
-            active: true,
-          },
-          {
-            user_id: user.id,
-            name: 'Bus',
-            amount: 40,
-            category_name: 'Transport',
-            frequency: 'daily',
-            start_date: todayStr,
-            active: true,
-          },
-          {
-            user_id: user.id,
-            name: 'Netflix Subscription',
-            amount: 199,
-            category_name: 'Entertainment',
-            frequency: 'monthly',
-            start_date: todayStr,
-            active: true,
-          },
-        ])
-        .select('*');
-
-      // 3. Create today's occurrences for Milk and Bus
-      if (fixedCreated) {
-        const occInserts = fixedCreated.map((rule) => ({
-          fixed_expense_id: rule.id,
-          user_id: user.id,
-          occurrence_date: todayStr,
-          amount: rule.amount,
-          status: 'pending' as const,
+    // Instant / Test Email Dispatchers
+    const sendFixedRemindersEmail = async (
+      slot: 'morning' | 'evening' | 'mid_week' | 'week_end' | 'month_end' | 'instant' = 'instant'
+    ) => {
+      if (!user?.id) return { success: false, message: 'User not authenticated' };
+      const pendingItems = todayFixedExpenses
+        .filter((i) => i.status === 'pending')
+        .map((i) => ({
+          id: i.occurrenceId,
+          name: i.name,
+          amount: i.amount,
+          frequency: i.frequency,
+          category: i.category,
         }));
 
-        await supabase
-          .from('fixed_expense_occurrences')
-          .insert(occInserts)
-          .select('*');
-      }
+      return await sendFixedExpenseReminderEmail({
+        userId: user.id,
+        slot,
+        pendingItems: pendingItems.length > 0 ? pendingItems : todayFixedExpenses.map((i) => ({
+          id: i.occurrenceId,
+          name: i.name,
+          amount: i.amount,
+          frequency: i.frequency,
+          category: i.category,
+        })),
+      });
+    };
 
-      // 4. Add Manual Expenses: Lunch ₹200, Shopping ₹500
-      await supabase.from('expenses').insert([
-        {
-          user_id: user.id,
-          amount: 200,
-          category_name: 'Food',
-          description: 'Lunch with colleagues',
-          expense_date: todayStr,
-        },
-        {
-          user_id: user.id,
-          amount: 500,
-          category_name: 'Shopping',
-          description: 'Weekend Shopping Essentials',
-          expense_date: todayStr,
-        },
-      ]);
+    const sendLowBalanceEmailAlertNow = async () => {
+      if (!user?.id) return { success: false, message: 'User not authenticated' };
+      return await sendLowBalanceEmailAlert({
+        userId: user.id,
+        currentBalance: summary.currentBalance,
+        threshold: summary.lowBalanceThreshold,
+        safeToSpend: summary.safeToSpend,
+      });
+    };
 
-      await fetchData();
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
-    }
-  };
+    const sendCycleEndingEmailAlertNow = async () => {
+      if (!user?.id) return { success: false, message: 'User not authenticated' };
+      const today = new Date();
+      const currentPeriod = getDaysRemainingInPeriod(
+        budgetSettings?.period_type || 'monthly',
+        today,
+        budgetSettings?.cycle_start_day || 1,
+        budgetSettings?.custom_start_date,
+        budgetSettings?.custom_end_date
+      );
 
-  // Reset all user data
-  const resetUserData = async (): Promise<{ success: boolean; error?: string }> => {
-    if (!user?.id) return { success: false, error: 'User not logged in' };
+      return await sendFiveDayRemainingEmailAlert({
+        userId: user.id,
+        daysRemaining: summary.daysRemaining,
+        periodEnd: format(currentPeriod.periodEnd, 'yyyy-MM-dd'),
+        remainingBalance: summary.currentBalance,
+        safeToSpend: summary.safeToSpend,
+        upcomingFixedExpenses: summary.upcomingFixedExpenses,
+      });
+    };
 
-    try {
-      await Promise.all([
-        supabase.from('money_additions').delete().eq('user_id', user.id),
-        supabase.from('expenses').delete().eq('user_id', user.id),
-        supabase.from('fixed_expenses').delete().eq('user_id', user.id),
-        supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
-        supabase.from('notifications').delete().eq('user_id', user.id),
-        supabase.from('weekly_reports').delete().eq('user_id', user.id),
-        supabase.from('budget_settings').delete().eq('user_id', user.id),
-      ]);
-
-      try {
-        await AsyncStorage.removeItem(`budget_settings_${user.id}`);
-        await AsyncStorage.removeItem(`smartspend_closed_months_${user.id}`);
-      } catch {}
-
-      setMoneyAdditions([]);
-      setManualExpenses([]);
-      setFixedExpenses([]);
-      setOccurrences([]);
-      setBudgetSettings(null);
-      setClosedMonths([]);
-
-      await fetchData();
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
-    }
-  };
-
-  // Instant / Test Email Dispatchers
-  const sendFixedRemindersEmail = async (
-    slot: 'morning' | 'evening' | 'mid_week' | 'week_end' | 'month_end' | 'instant' = 'instant'
-  ) => {
-    if (!user?.id) return { success: false, message: 'User not authenticated' };
-    const pendingItems = todayFixedExpenses
-      .filter((i) => i.status === 'pending')
-      .map((i) => ({
-        id: i.occurrenceId,
-        name: i.name,
-        amount: i.amount,
-        frequency: i.frequency,
-        category: i.category,
-      }));
-
-    return await sendFixedExpenseReminderEmail({
-      userId: user.id,
-      slot,
-      pendingItems: pendingItems.length > 0 ? pendingItems : todayFixedExpenses.map((i) => ({
-        id: i.occurrenceId,
-        name: i.name,
-        amount: i.amount,
-        frequency: i.frequency,
-        category: i.category,
-      })),
-    });
-  };
-
-  const sendLowBalanceEmailAlertNow = async () => {
-    if (!user?.id) return { success: false, message: 'User not authenticated' };
-    return await sendLowBalanceEmailAlert({
-      userId: user.id,
-      currentBalance: summary.currentBalance,
-      threshold: summary.lowBalanceThreshold,
-      safeToSpend: summary.safeToSpend,
-    });
-  };
-
-  const sendCycleEndingEmailAlertNow = async () => {
-    if (!user?.id) return { success: false, message: 'User not authenticated' };
-    const today = new Date();
-    const currentPeriod = getDaysRemainingInPeriod(
-      budgetSettings?.period_type || 'monthly',
-      today,
-      budgetSettings?.cycle_start_day || 1,
-      budgetSettings?.custom_start_date,
-      budgetSettings?.custom_end_date
+    return (
+      <FinancialContext.Provider
+        value={{
+          loading,
+          refreshing,
+          summary,
+          moneyAdditions,
+          manualExpenses,
+          fixedExpenses,
+          occurrences,
+          categories,
+          budgetSettings,
+          todayFixedExpenses,
+          unifiedTransactions,
+          categoryBreakdown,
+          closedMonths,
+          deleteClosedMonth,
+          refreshData,
+          addMoney,
+          addExpense,
+          addFixedExpense,
+          updateFixedExpense,
+          deleteFixedExpense,
+          toggleFixedExpenseActive,
+          payFixedExpense,
+          skipFixedExpense,
+          addCustomCategory,
+          updateBudgetSettings,
+          extendBudgetPeriod,
+          closeCurrentMonth,
+          loadDemoData,
+          resetUserData,
+          sendFixedRemindersEmail,
+          sendLowBalanceEmailAlertNow,
+          sendCycleEndingEmailAlertNow,
+        }}
+      >
+        {children}
+      </FinancialContext.Provider>
     );
-
-    return await sendFiveDayRemainingEmailAlert({
-      userId: user.id,
-      daysRemaining: summary.daysRemaining,
-      periodEnd: format(currentPeriod.periodEnd, 'yyyy-MM-dd'),
-      remainingBalance: summary.currentBalance,
-      safeToSpend: summary.safeToSpend,
-      upcomingFixedExpenses: summary.upcomingFixedExpenses,
-    });
   };
 
-  return (
-    <FinancialContext.Provider
-      value={{
-        loading,
-        refreshing,
-        summary,
-        moneyAdditions,
-        manualExpenses,
-        fixedExpenses,
-        occurrences,
-        categories,
-        budgetSettings,
-        todayFixedExpenses,
-        unifiedTransactions,
-        categoryBreakdown,
-        closedMonths,
-        deleteClosedMonth,
-        refreshData,
-        addMoney,
-        addExpense,
-        addFixedExpense,
-        updateFixedExpense,
-        deleteFixedExpense,
-        toggleFixedExpenseActive,
-        payFixedExpense,
-        skipFixedExpense,
-        addCustomCategory,
-        updateBudgetSettings,
-        extendBudgetPeriod,
-        closeCurrentMonth,
-        loadDemoData,
-        resetUserData,
-        sendFixedRemindersEmail,
-        sendLowBalanceEmailAlertNow,
-        sendCycleEndingEmailAlertNow,
-      }}
-    >
-      {children}
-    </FinancialContext.Provider>
-  );
-};
-
-export function useFinancial() {
-  const context = useContext(FinancialContext);
-  if (!context) {
-    throw new Error('useFinancial must be used within a FinancialProvider');
+  export function useFinancial() {
+    const context = useContext(FinancialContext);
+    if (!context) {
+      throw new Error('useFinancial must be used within a FinancialProvider');
+    }
+    return context;
   }
-  return context;
-}

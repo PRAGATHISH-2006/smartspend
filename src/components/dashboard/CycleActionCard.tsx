@@ -42,8 +42,8 @@ export const CycleActionCard: React.FC<CycleActionCardProps> = ({
               isLastDay
                 ? styles.dotDanger
                 : isEndingSoon
-                ? styles.dotWarning
-                : styles.dotNormal,
+                  ? styles.dotWarning
+                  : styles.dotNormal,
             ]}
           />
           <Text
@@ -52,15 +52,15 @@ export const CycleActionCard: React.FC<CycleActionCardProps> = ({
               isLastDay
                 ? styles.badgeTextDanger
                 : isEndingSoon
-                ? styles.badgeTextWarning
-                : styles.badgeTextNormal,
+                  ? styles.badgeTextWarning
+                  : styles.badgeTextNormal,
             ]}
           >
             {isLastDay
               ? '⚠️ LAST DAY REMINDER'
               : isEndingSoon
-              ? `⏳ ${daysRemaining} DAYS REMAINING IN CYCLE`
-              : '📅 ACTIVE BUDGET CYCLE'}
+                ? `⏳ ${daysRemaining} DAYS REMAINING IN CYCLE`
+                : '📅 ACTIVE BUDGET CYCLE'}
           </Text>
         </View>
 
@@ -75,13 +75,13 @@ export const CycleActionCard: React.FC<CycleActionCardProps> = ({
           {isLastDay
             ? 'Cycle Ends Today! Should we close or extend?'
             : isEndingSoon
-            ? `Your monthly cycle ends in ${daysRemaining} days.`
-            : 'Spending Cycle Management'}
+              ? `Your monthly cycle ends in ${daysRemaining} days.`
+              : 'Spending Cycle Management'}
         </Text>
         <Text style={styles.bodyText}>
           {isLastDay
-            ? 'You can extend this cycle by picking extra days (e.g. +5 days), or close this month now to rollover remaining funds to next month & archive transactions to Google Drive.'
-            : 'Extend your period by +5 days (or a custom date), or close this month anytime to carry forward your surplus to next month.'}
+              ? 'You can extend this cycle by picking extra days (e.g. +5 days), or close this month now to rollover remaining funds to your next cycle wallet.'
+              : 'Extend your period by +5 days (or a custom date), or close this month anytime to carry forward your surplus to next month.'}
         </Text>
 
         {/* Rollover Surplus Preview if > 0 */}
