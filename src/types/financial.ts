@@ -71,3 +71,22 @@ export interface SpendingTrendPoint {
   value: number;
   date: string;
 }
+
+export interface ClosedMonthRecord {
+  id: string;
+  userId: string;
+  monthName: string;
+  periodStart: string;
+  periodEnd: string;
+  totalMoneyAdded: number;
+  totalWithdrawn: number;
+  closingBalance: number;
+  rolloverAmount: number;
+  closedAt: string;
+  transactionsCount: number;
+  transactions: UnifiedTransaction[];
+  categoryBreakdown: CategorySpending[];
+  pdfFilename?: string;
+  driveFolderUrl?: string;
+}
+

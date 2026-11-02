@@ -272,8 +272,8 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                 </Text>
                 <Text style={styles.subtitle}>
                   {closedResult
-                    ? 'Surplus rolled over & cycle archived'
-                    : 'Review recurring expenses, rollover surplus & archive'}
+                    ? 'All active data cleared & archived into Reports'
+                    : 'Clear active data, start from first & store in Reports'}
                 </Text>
               </View>
             </View>
@@ -567,26 +567,18 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                   </View>
                 </View>
 
-                {/* Rollover Surplus Preview Box */}
-                {rolloverAmount > 0 ? (
-                  <View style={styles.rolloverBox}>
-                    <View style={styles.rolloverHeader}>
-                      <Coins size={20} color="#047857" />
-                      <Text style={styles.rolloverTitle}>💰 Unspent Balance Carried Forward</Text>
-                    </View>
-                    <Text style={styles.rolloverAmount}>{formatINR(rolloverAmount)}</Text>
-                    <Text style={styles.rolloverText}>
-                      Your remaining balance of {formatINR(rolloverAmount)} will carry over directly into your next cycle wallet so you can continue spending smoothly!
+                {/* Reports Storage & Fresh Start Notice */}
+                <View style={styles.reportsArchiveNoticeBox}>
+                  <View style={styles.reportsArchiveNoticeHeader}>
+                    <FolderArchive size={20} color={THEME.colors.primary} />
+                    <Text style={styles.reportsArchiveNoticeTitle}>
+                      📁 Archived into Reports & Fresh Start
                     </Text>
                   </View>
-                ) : (
-                  <View style={styles.noRolloverBox}>
-                    <AlertTriangle size={18} color="#B45309" />
-                    <Text style={styles.noRolloverText}>
-                      Your balance is currently {formatINR(currentBalance)}. No surplus balance will be rolled over.
-                    </Text>
-                  </View>
-                )}
+                  <Text style={styles.reportsArchiveNoticeText}>
+                    Closing this month will clear all active data so you start fresh from first with a clean wallet balance. All closed month details (<Text style={{ fontWeight: '700', color: '#059669' }}>+{formatINR(totalMoneyAdded)} Added</Text>, <Text style={{ fontWeight: '700', color: '#DC2626' }}>-{formatINR(totalExpenses)} Withdrawn</Text>) and the entire transaction log will be safely stored in your <Text style={{ fontWeight: '700', color: THEME.colors.primaryDark }}>Reports</Text> section under Previous Months.
+                  </Text>
+                </View>
 
                 {/* Google Drive Storage Location */}
                 <View style={styles.driveInfoBox}>
@@ -1241,4 +1233,29 @@ const styles = StyleSheet.create({
     color: '#78350F',
     lineHeight: 16,
   },
+  reportsArchiveNoticeBox: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    borderRadius: THEME.borderRadius.lg,
+    padding: THEME.spacing.md,
+    marginBottom: THEME.spacing.md,
+  },
+  reportsArchiveNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  reportsArchiveNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#312E81',
+  },
+  reportsArchiveNoticeText: {
+    fontSize: 12,
+    color: '#3730A3',
+    lineHeight: 18,
+  },
 });
+

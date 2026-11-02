@@ -20,6 +20,7 @@ import {
   UnifiedTransaction,
   TodayFixedExpenseItem,
   CategorySpending,
+  ClosedMonthRecord,
 } from '../types/financial';
 import { evaluateFinancialSummary } from '../utils/financialCalculations';
 import { getTodayDateString, getDaysRemainingInPeriod } from '../utils/dateUtils';
@@ -96,6 +97,8 @@ interface FinancialContextType {
   addCustomCategory: (name: string, icon?: string, color?: string) => Promise<{ error: Error | null }>;
   updateBudgetSettings: (updates: Partial<BudgetSettingsRow>) => Promise<{ error: Error | null }>;
   extendBudgetPeriod: (days?: number, customDate?: string) => Promise<{ error: Error | null; newEndDate?: string }>;
+  closedMonths: ClosedMonthRecord[];
+  deleteClosedMonth: (id: string) => Promise<{ error: Error | null }>;
   closeCurrentMonth: () => Promise<{
     success: boolean;
     rolloverAmount: number;
@@ -144,6 +147,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [occurrences, setOccurrences] = useState<FixedExpenseOccurrenceRow[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [budgetSettings, setBudgetSettings] = useState<BudgetSettingsRow | null>(null);
+  const [closedMonths, setClosedMonths] = useState<ClosedMonthRecord[]>([]);
 
   /**
    * Sync and generate today's pending occurrences for active recurring rules
@@ -258,6 +262,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setOccurrences([]);
       setCategories([]);
       setBudgetSettings(null);
+      setClosedMonths([]);
       setLoading(false);
       return;
     }
@@ -357,6 +362,44 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setOccurrences(fetchedOccurrences);
       setCategories(fetchedCategories);
       setBudgetSettings(fetchedBudget);
+
+      // Load archived closed months from persistent storage & Supabase
+      try {
+        const cachedClosed = await AsyncStorage.getItem(`smartspend_closed_months_${user.id}`);
+        if (cachedClosed) {
+          try {
+            setClosedMonths(JSON.parse(cachedClosed));
+          } catch {}
+        }
+
+        const { data: remoteClosed } = await supabase
+          .from('closed_months')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('closed_at', { ascending: false });
+
+        if (remoteClosed && remoteClosed.length > 0) {
+          const mapped: ClosedMonthRecord[] = remoteClosed.map((r: any) => ({
+            id: r.id,
+            userId: r.user_id,
+            monthName: r.month_name,
+            periodStart: r.period_start,
+            periodEnd: r.period_end,
+            totalMoneyAdded: Number(r.total_money_added) || 0,
+            totalWithdrawn: Number(r.total_withdrawn) || 0,
+            closingBalance: Number(r.closing_balance) || 0,
+            rolloverAmount: Math.max(0, Number(r.closing_balance) || 0),
+            closedAt: r.closed_at,
+            transactionsCount: Array.isArray(r.transactions) ? r.transactions.length : 0,
+            transactions: r.transactions || [],
+            categoryBreakdown: r.category_breakdown || [],
+          }));
+          setClosedMonths(mapped);
+          await AsyncStorage.setItem(`smartspend_closed_months_${user.id}`, JSON.stringify(mapped));
+        }
+      } catch (closedErr) {
+        // Fallback silently if offline or table not present
+      }
     } catch (err) {
       console.warn('Error fetching financial data:', err);
     } finally {
@@ -970,23 +1013,59 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const closingBalance = summary.currentBalance;
       const rolloverAmount = Math.max(0, closingBalance);
 
-      // 1. Transfer remaining surplus to next month's wallet and log transaction
-      if (rolloverAmount > 0) {
-        await supabase.from('money_additions').insert({
-          user_id: user.id,
-          amount: rolloverAmount,
-          description: `Rollover Surplus from Closed Month (${startDateStr} to ${endDateStr})`,
-          payment_method: 'Month-End Rollover',
-          added_at: new Date().toISOString(),
-        });
-      }
-
-      // 2. Generate transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf) for Drive and Email
+      // 1. Generate transaction archive PDF with Month Name (e.g. October_2026_Transactions.pdf) for Drive and Email
       const monthName = format(today, 'MMMM_yyyy'); // e.g. "October_2026"
       const monthDisplay = format(today, 'MMMM yyyy'); // e.g. "October 2026"
       let pdfFilename = `${monthName}_Transactions.pdf`;
       let pdfBase64 = '';
       let driveUploadSuccess = false;
+
+      // 2. Snapshot and archive closed month details into Reports section storage
+      const closedRecord: ClosedMonthRecord = {
+        id: `closed_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        userId: user.id,
+        monthName: monthDisplay,
+        periodStart: startDateStr,
+        periodEnd: endDateStr,
+        totalMoneyAdded: summary.totalMoneyAdded,
+        totalWithdrawn: summary.totalExpenses,
+        closingBalance: summary.currentBalance,
+        rolloverAmount,
+        closedAt: new Date().toISOString(),
+        transactionsCount: unifiedTransactions.length,
+        transactions: [...unifiedTransactions],
+        categoryBreakdown: [...categoryBreakdown],
+        pdfFilename,
+        driveFolderUrl: DRIVE_FOLDER_URL,
+      };
+
+      const updatedClosedMonths = [
+        closedRecord,
+        ...closedMonths.filter((m) => m.id !== closedRecord.id),
+      ];
+      setClosedMonths(updatedClosedMonths);
+      await AsyncStorage.setItem(
+        `smartspend_closed_months_${user.id}`,
+        JSON.stringify(updatedClosedMonths)
+      );
+
+      try {
+        await supabase.from('closed_months').upsert({
+          id: closedRecord.id,
+          user_id: user.id,
+          month_name: closedRecord.monthName,
+          period_start: closedRecord.periodStart,
+          period_end: closedRecord.periodEnd,
+          total_money_added: closedRecord.totalMoneyAdded,
+          total_withdrawn: closedRecord.totalWithdrawn,
+          closing_balance: closedRecord.closingBalance,
+          transactions: closedRecord.transactions,
+          category_breakdown: closedRecord.categoryBreakdown,
+          closed_at: closedRecord.closedAt,
+        });
+      } catch (e) {
+        // Fallback silently if offline or remote table not created
+      }
 
       try {
         const pdfResult = generateMonthStatementPdf({
@@ -1007,8 +1086,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         pdfFilename = pdfResult.filename;
         pdfBase64 = pdfResult.base64;
 
-        // Auto-download of PDF is disabled as requested
-
         // Attempt automated background upload to Google Drive right away
         try {
           const savedWebhook = (await AsyncStorage.getItem('gdrive_webhook_url')) || undefined;
@@ -1026,8 +1103,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('PDF generation error:', pdfErr);
       }
 
-      // Auto-download of CSV is disabled as requested
-
       // 3. Dispatch Month-End Closed Statement to user's email with Drive Link & Attached PDF
       try {
         await triggerMonthCloseStatementEmail({
@@ -1043,17 +1118,25 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('Statement email error:', emailErr);
       }
 
-      // 4. Advance budget cycle: Start fresh from today through the end of next month
+      // 4. CLEAR ALL ACTIVE DATA TO START FRESH FROM FIRST
+      await Promise.all([
+        supabase.from('expenses').delete().eq('user_id', user.id),
+        supabase.from('money_additions').delete().eq('user_id', user.id),
+        supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
+      ]);
+
+      // 5. Reset active budget cycle to start fresh from today
       const newStartDateStr = getTodayDateString(today);
-      const newEndDateStr = format(endOfMonth(addMonths(today, 1)), 'yyyy-MM-dd');
+      const newEndDateStr = format(endOfMonth(today), 'yyyy-MM-dd');
 
       await updateBudgetSettings({
-        period_type: 'custom',
+        period_type: 'monthly',
+        cycle_start_day: 1,
         custom_start_date: newStartDateStr,
         custom_end_date: newEndDateStr,
       });
 
-      // 5. Generate fresh pending occurrences for all active recurring expenses in the new cycle
+      // 6. Generate fresh pending occurrences for all active recurring expenses in the new cycle
       const activeRules = fixedExpenses.filter((r) => r.active);
       if (activeRules.length > 0) {
         for (const rule of activeRules) {
@@ -1074,17 +1157,17 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }
 
-      // 5. In-app notification
+      // 7. Reset in-memory active states
+      setMoneyAdditions([]);
+      setManualExpenses([]);
+      setOccurrences([]);
+
+      // 8. In-app notification
       await createInAppNotification({
         userId: user.id,
         type: 'INFO',
         title: 'Month Successfully Closed 📁',
-        message:
-          rolloverAmount > 0
-            ? `Month closed! Unspent balance ₹${rolloverAmount.toLocaleString(
-                'en-IN'
-              )} remains available in your wallet for the next cycle.`
-            : `Month closed successfully.`,
+        message: `${monthDisplay} is closed! All active transactions have been cleared to start fresh from first. Your closed month details are stored in the Reports section.`,
       });
 
       // 6. Open Drive link in browser
@@ -1107,9 +1190,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         pdfFilename,
         pdfBase64,
         driveUploadSuccess,
-        message: `Month closed successfully! Surplus ₹${rolloverAmount.toLocaleString(
-          'en-IN'
-        )} carried forward.`,
+        message: `${monthDisplay} closed! All data cleared to start fresh from first. Closed month details are stored in Reports.`,
       };
     } catch (err: any) {
       return {
@@ -1121,12 +1202,108 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const deleteClosedMonth = async (id: string): Promise<{ error: Error | null }> => {
+    if (!user?.id) return { error: new Error('User not logged in') };
+    try {
+      const updated = closedMonths.filter((m) => m.id !== id);
+      setClosedMonths(updated);
+      await AsyncStorage.setItem(
+        `smartspend_closed_months_${user.id}`,
+        JSON.stringify(updated)
+      );
+      try {
+        await supabase.from('closed_months').delete().eq('id', id).eq('user_id', user.id);
+      } catch {}
+      return { error: null };
+    } catch (err: any) {
+      return { error: err };
+    }
+  };
+
   // Demo Dataset Loader (Milk ₹60/day, Bus ₹40/day, Netflix ₹199/month, Lunch ₹200, Shopping ₹500, Wallet ₹10,000)
   const loadDemoData = async (): Promise<{ success: boolean; error?: string }> => {
     if (!user?.id) return { success: false, error: 'User not logged in' };
 
     try {
       const todayStr = getTodayDateString();
+
+      // Seed a sample previous month (September 2026) if none exists so reports section demonstrates closed month details immediately
+      if (closedMonths.length === 0) {
+        const demoClosedMonth: ClosedMonthRecord = {
+          id: `closed_demo_${Date.now()}`,
+          userId: user.id,
+          monthName: 'September 2026',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+          totalMoneyAdded: 25000,
+          totalWithdrawn: 16790,
+          closingBalance: 8210,
+          rolloverAmount: 8210,
+          closedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
+          transactionsCount: 5,
+          transactions: [
+            {
+              id: 'demo_add_1',
+              name: 'Monthly Salary Deposit',
+              amount: 25000,
+              category: 'Top-up',
+              date: '2026-09-01',
+              type: 'money_added',
+              rawType: 'income',
+              notes: 'Direct Bank Transfer / Salary',
+            },
+            {
+              id: 'demo_exp_1',
+              name: 'House Rent & Maintenance',
+              amount: 10000,
+              category: 'Housing',
+              date: '2026-09-05',
+              type: 'manual_expense',
+              rawType: 'expense',
+              notes: 'UPI Transfer',
+            },
+            {
+              id: 'demo_exp_2',
+              name: 'Monthly Supermarket Groceries',
+              amount: 4500,
+              category: 'Groceries',
+              date: '2026-09-12',
+              type: 'manual_expense',
+              rawType: 'expense',
+              notes: 'Credit Card',
+            },
+            {
+              id: 'demo_exp_3',
+              name: 'Electricity & Broadband Bill',
+              amount: 1600,
+              category: 'Utilities',
+              date: '2026-09-18',
+              type: 'fixed_expense',
+              rawType: 'expense',
+              notes: 'Auto-debit',
+            },
+            {
+              id: 'demo_exp_4',
+              name: 'Netflix 4K & Spotify Premium',
+              amount: 690,
+              category: 'Entertainment',
+              date: '2026-09-25',
+              type: 'fixed_expense',
+              rawType: 'expense',
+              notes: 'Recurring Subscription',
+            },
+          ],
+          categoryBreakdown: [
+            { name: 'Housing', amount: 10000, percentage: 60, color: '#3B82F6', icon: 'Home' },
+            { name: 'Groceries', amount: 4500, percentage: 27, color: '#10B981', icon: 'ShoppingBag' },
+            { name: 'Utilities', amount: 1600, percentage: 9, color: '#F59E0B', icon: 'Zap' },
+            { name: 'Entertainment', amount: 690, percentage: 4, color: '#8B5CF6', icon: 'Film' },
+          ],
+        };
+        const updated = [demoClosedMonth];
+        setClosedMonths(updated);
+        await AsyncStorage.setItem(`smartspend_closed_months_${user.id}`, JSON.stringify(updated));
+      }
 
       // 1. Add Wallet Money ₹10,000
       await supabase.from('money_additions').insert({
@@ -1228,6 +1405,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       try {
         await AsyncStorage.removeItem(`budget_settings_${user.id}`);
+        await AsyncStorage.removeItem(`smartspend_closed_months_${user.id}`);
       } catch {}
 
       setMoneyAdditions([]);
@@ -1235,6 +1413,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setFixedExpenses([]);
       setOccurrences([]);
       setBudgetSettings(null);
+      setClosedMonths([]);
 
       await fetchData();
       return { success: true };
@@ -1317,6 +1496,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         todayFixedExpenses,
         unifiedTransactions,
         categoryBreakdown,
+        closedMonths,
+        deleteClosedMonth,
         refreshData,
         addMoney,
         addExpense,

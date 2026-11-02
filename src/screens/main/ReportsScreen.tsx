@@ -34,6 +34,7 @@ import { CategoryPieChart } from '../../components/reports/CategoryPieChart';
 import { ExpenseComparisonBar } from '../../components/reports/ExpenseComparisonBar';
 import { SpendingTrendChart } from '../../components/reports/SpendingTrendChart';
 import { RecurringPerformanceTable } from '../../components/reports/RecurringPerformanceTable';
+import { PreviousMonthsSection } from '../../components/reports/PreviousMonthsSection';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { Button } from '../../components/common/Button';
 import {
@@ -57,9 +58,11 @@ export const ReportsScreen: React.FC<Props> = () => {
     fixedExpenses,
     occurrences,
     categoryBreakdown,
+    closedMonths,
+    deleteClosedMonth,
   } = useFinancial();
 
-  const [periodTab, setPeriodTab] = useState<'week' | 'month'>('week');
+  const [periodTab, setPeriodTab] = useState<'week' | 'month' | 'previous'>('month');
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
   const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
@@ -69,7 +72,7 @@ export const ReportsScreen: React.FC<Props> = () => {
 
   const registeredEmail = (user?.email || profile?.email || '').trim();
 
-  // Filter data according to selected tab (week or month)
+  // Filter data according to selected tab (week or month or previous)
   const now = new Date();
   const dateRange = useMemo(() => {
     if (periodTab === 'week') {
@@ -80,13 +83,19 @@ export const ReportsScreen: React.FC<Props> = () => {
         endStr: format(end, 'yyyy-MM-dd'),
         label: `${format(start, 'd MMM')} - ${format(end, 'd MMM yyyy')}`,
       };
-    } else {
+    } else if (periodTab === 'month') {
       const start = startOfMonth(now);
       const end = endOfMonth(now);
       return {
         startStr: format(start, 'yyyy-MM-dd'),
         endStr: format(end, 'yyyy-MM-dd'),
         label: format(now, 'MMMM yyyy'),
+      };
+    } else {
+      return {
+        startStr: '',
+        endStr: '',
+        label: 'Previous Months Archive',
       };
     }
   }, [periodTab]);
@@ -303,6 +312,16 @@ export const ReportsScreen: React.FC<Props> = () => {
             This Month
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabBtn, periodTab === 'previous' && styles.tabBtnActive]}
+          onPress={() => setPeriodTab('previous')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabBtnText, periodTab === 'previous' && styles.tabBtnTextActive]}>
+            Previous Months {closedMonths.length > 0 ? `(${closedMonths.length})` : ''}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -317,35 +336,54 @@ export const ReportsScreen: React.FC<Props> = () => {
           />
         }
       >
-        {/* 1. Summary Cards */}
-        <FinancialSummaryCards
-          startingBalance={startingBalance}
-          moneyAdded={periodMoneyAdded}
-          manualExpenses={periodManualTotal}
-          fixedExpenses={periodFixedCompleted}
-          totalExpenses={periodTotalExpenses}
-          remainingBalance={summary.currentBalance}
-          upcomingFixedExpenses={summary.upcomingFixedExpenses}
-          safeToSpend={summary.safeToSpend}
-        />
+        {periodTab === 'previous' ? (
+          /* Focused Previous Months Archive Tab */
+          <View>
+            <PreviousMonthsSection
+              closedMonths={closedMonths}
+              onDeleteClosedMonth={deleteClosedMonth}
+            />
+          </View>
+        ) : (
+          /* Weekly or Monthly Active Analytics */
+          <View>
+            {/* 1. Summary Cards */}
+            <FinancialSummaryCards
+              startingBalance={startingBalance}
+              moneyAdded={periodMoneyAdded}
+              manualExpenses={periodManualTotal}
+              fixedExpenses={periodFixedCompleted}
+              totalExpenses={periodTotalExpenses}
+              remainingBalance={summary.currentBalance}
+              upcomingFixedExpenses={summary.upcomingFixedExpenses}
+              safeToSpend={summary.safeToSpend}
+            />
 
-        {/* 2. Category Breakdown Donut / Progress */}
-        <CategoryPieChart
-          categories={categoryBreakdown}
-          totalExpenses={summary.totalExpenses}
-        />
+            {/* 2. Category Breakdown Donut / Progress */}
+            <CategoryPieChart
+              categories={categoryBreakdown}
+              totalExpenses={summary.totalExpenses}
+            />
 
-        {/* 3. Fixed vs Manual Spending Comparison */}
-        <ExpenseComparisonBar
-          manualExpenses={periodManualTotal}
-          fixedExpenses={periodFixedCompleted}
-        />
+            {/* 3. Fixed vs Manual Spending Comparison */}
+            <ExpenseComparisonBar
+              manualExpenses={periodManualTotal}
+              fixedExpenses={periodFixedCompleted}
+            />
 
-        {/* 4. 7-Day Spending Trend */}
-        <SpendingTrendChart data={trendData} />
+            {/* 4. 7-Day Spending Trend */}
+            <SpendingTrendChart data={trendData} />
 
-        {/* 5. Recurring Performance Table */}
-        <RecurringPerformanceTable items={recurringPerformance} />
+            {/* 5. Recurring Performance Table */}
+            <RecurringPerformanceTable items={recurringPerformance} />
+
+            {/* 6. Previous Month Details Section */}
+            <PreviousMonthsSection
+              closedMonths={closedMonths}
+              onDeleteClosedMonth={deleteClosedMonth}
+            />
+          </View>
+        )}
 
         {/* 6. Instant Email Report Card (Sent to Logged-in User's Email) */}
         <View style={styles.emailCard}>
@@ -466,8 +504,10 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 4,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: THEME.borderRadius.lg,
   },
   tabBtnActive: {
@@ -475,9 +515,10 @@ const styles = StyleSheet.create({
     ...THEME.shadows.card,
   },
   tabBtnText: {
-    fontSize: THEME.typography.sizes.sm,
+    fontSize: 12,
     fontWeight: THEME.typography.weights.medium,
     color: THEME.colors.textSecondary,
+    textAlign: 'center',
   },
   tabBtnTextActive: {
     color: THEME.colors.textPrimary,

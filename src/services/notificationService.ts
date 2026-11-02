@@ -67,6 +67,7 @@ export async function sendLocalNotification(params: {
   body: string;
   data?: Record<string, any>;
 }): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
