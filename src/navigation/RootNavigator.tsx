@@ -18,7 +18,12 @@ export const RootNavigator: React.FC = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      documentTitle={{
+        enabled: true,
+        formatter: () => 'வெற்றி நிதி மேலாண்மை',
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
           <Stack.Screen name="Main" component={MainTabNavigator} />

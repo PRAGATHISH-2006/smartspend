@@ -1011,49 +1011,129 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const rolloverAmount = Math.max(0, closingBalance);
       const monthDisplay = format(today, 'MMMM yyyy');
 
-          // 1. Transfer remaining surplus to next month's wallet and log transaction
-          if(rolloverAmount > 0) {
-          await supabase.from('money_additions').insert({
-            user_id: user.id,
-            amount: rolloverAmount,
-            description: `Rollover Surplus from Closed Month (${startDateStr} to ${endDateStr})`,
-            payment_method: 'Month-End Rollover',
-          });
+      // 1. Snapshot and archive closed month details into Reports section storage
+      const closedRecord: ClosedMonthRecord = {
+        id: `closed_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        userId: user.id,
+        monthName: monthDisplay,
+        periodStart: startDateStr,
+        periodEnd: endDateStr,
+        totalMoneyAdded: summary.totalMoneyAdded,
+        totalWithdrawn: summary.totalExpenses,
+        closingBalance: summary.currentBalance,
+        rolloverAmount,
+        closedAt: new Date().toISOString(),
+        transactionsCount: unifiedTransactions.length,
+        transactions: [...unifiedTransactions],
+        categoryBreakdown: [...categoryBreakdown],
+      };
+
+      const updatedClosedMonths = [
+        closedRecord,
+        ...closedMonths.filter((m) => m.id !== closedRecord.id),
+      ];
+      setClosedMonths(updatedClosedMonths);
+      await AsyncStorage.setItem(
+        `smartspend_closed_months_${user.id}`,
+        JSON.stringify(updatedClosedMonths)
+      );
+
+      try {
+        await supabase.from('closed_months').upsert({
+          id: closedRecord.id,
+          user_id: user.id,
+          month_name: closedRecord.monthName,
+          period_start: closedRecord.periodStart,
+          period_end: closedRecord.periodEnd,
+          total_money_added: closedRecord.totalMoneyAdded,
+          total_withdrawn: closedRecord.totalWithdrawn,
+          closing_balance: closedRecord.closingBalance,
+          transactions: closedRecord.transactions,
+          category_breakdown: closedRecord.categoryBreakdown,
+          closed_at: closedRecord.closedAt,
+        });
+      } catch (e) {
+        // Fallback silently if offline or remote table not created
+      }
+
+      // 2. CLEAR ALL ACTIVE DATA TO START FRESH FOR THE NEW MONTH
+      await Promise.all([
+        supabase.from('expenses').delete().eq('user_id', user.id),
+        supabase.from('money_additions').delete().eq('user_id', user.id),
+        supabase.from('fixed_expense_occurrences').delete().eq('user_id', user.id),
+      ]);
+
+      // 3. Transfer remaining surplus to next month's wallet and log transaction
+      if (rolloverAmount > 0) {
+        await supabase.from('money_additions').insert({
+          user_id: user.id,
+          amount: rolloverAmount,
+          description: `Rollover Surplus from Closed Month (${startDateStr} to ${endDateStr})`,
+          payment_method: 'Month-End Rollover',
+        });
+      }
+
+      // 4. Reset active budget cycle to start fresh from today
+      const newStartDateStr = getTodayDateString(today);
+      const newEndDateStr = format(endOfMonth(today), 'yyyy-MM-dd');
+
+      await updateBudgetSettings({
+        period_type: 'monthly',
+        cycle_start_day: 1,
+        custom_start_date: newStartDateStr,
+        custom_end_date: newEndDateStr,
+      });
+
+      // 5. Generate fresh pending occurrences for all active recurring expenses in the new cycle
+      const activeRules = fixedExpenses.filter((r) => r.active);
+      if (activeRules.length > 0) {
+        for (const rule of activeRules) {
+          await supabase
+            .from('fixed_expense_occurrences')
+            .upsert(
+              {
+                fixed_expense_id: rule.id,
+                user_id: user.id,
+                occurrence_date: newStartDateStr,
+                amount: rule.amount,
+                status: 'pending' as const,
+                processed_at: null,
+                created_at: new Date().toISOString(),
+              },
+              { onConflict: 'fixed_expense_id,occurrence_date' }
+            );
         }
+      }
 
-        // 2. Reset active budget cycle to start fresh from today
-        const newStartDateStr = getTodayDateString(today);
-        const newEndDateStr = format(endOfMonth(today), 'yyyy-MM-dd');
+      // 6. Reset in-memory active states
+      setMoneyAdditions([]);
+      setManualExpenses([]);
+      setOccurrences([]);
 
-        await updateBudgetSettings({
-          period_type: 'monthly',
-          cycle_start_day: 1,
-          custom_start_date: newStartDateStr,
-          custom_end_date: newEndDateStr,
-        });
+      // 7. In-app notification
+      await createInAppNotification({
+        userId: user.id,
+        type: 'INFO',
+        title: 'Month Successfully Closed 📅',
+        message: `${monthDisplay} is closed! Active data has been cleared. ${
+          rolloverAmount > 0
+            ? `${formatINR(rolloverAmount)} unspent surplus has been rolled over into your wallet.`
+            : 'New budget cycle started.'
+        }`,
+      });
 
-        // 3. In-app notification
-        await createInAppNotification({
-          userId: user.id,
-          type: 'INFO',
-          title: 'Month Successfully Closed 📅',
-          message: `${monthDisplay} is closed! ${rolloverAmount > 0
-              ? `${formatINR(rolloverAmount)} unspent surplus has been rolled over into your wallet.`
-              : 'New budget cycle started.'
-            }`,
-        });
+      await fetchData();
 
-        await fetchData();
-
-        return {
-          success: true,
-          rolloverAmount,
-          message: `${monthDisplay} closed! ${rolloverAmount > 0
-              ? `${formatINR(rolloverAmount)} surplus rolled over.`
-              : 'New budget cycle started.'
-            }`,
-        };
-      } catch (err: any) {
+      return {
+        success: true,
+        rolloverAmount,
+        message: `${monthDisplay} closed! Active data cleared and ${
+          rolloverAmount > 0
+            ? `${formatINR(rolloverAmount)} surplus rolled over.`
+            : 'new budget cycle started.'
+        }`,
+      };
+    } catch (err: any) {
         return {
           success: false,
           rolloverAmount: 0,

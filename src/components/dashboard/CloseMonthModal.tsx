@@ -109,8 +109,8 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                 </Text>
                 <Text style={styles.subtitle}>
                   {closedResult
-                    ? 'Surplus rolled over & cycle advanced'
-                    : 'Rollover surplus balance & advance to next cycle'}
+                    ? 'Active data cleared & surplus rolled over'
+                    : 'Clear active data, rollover surplus & advance cycle'}
                 </Text>
               </View>
             </View>

@@ -32,6 +32,7 @@ export const MainTabNavigator: React.FC = () => {
         name="HomeTab"
         component={HomeScreen}
         options={{
+          title: 'வெற்றி நிதி மேலாண்மை',
           tabBarLabel: 'Home',
           tabBarIcon: ({ color }) => <Home size={20} color={color} />,
         }}
@@ -40,6 +41,7 @@ export const MainTabNavigator: React.FC = () => {
         name="ExpensesTab"
         component={ExpensesScreen}
         options={{
+          title: 'வெற்றி நிதி மேலாண்மை',
           tabBarLabel: 'Expenses',
           tabBarIcon: ({ color }) => <Receipt size={20} color={color} />,
         }}
@@ -48,6 +50,7 @@ export const MainTabNavigator: React.FC = () => {
         name="FixedTab"
         component={FixedExpensesScreen}
         options={{
+          title: 'வெற்றி நிதி மேலாண்மை',
           tabBarLabel: 'Fixed',
           tabBarIcon: ({ color }) => <Repeat size={20} color={color} />,
         }}
@@ -56,6 +59,7 @@ export const MainTabNavigator: React.FC = () => {
         name="ReportsTab"
         component={ReportsScreen}
         options={{
+          title: 'வெற்றி நிதி மேலாண்மை',
           tabBarLabel: 'Reports',
           tabBarIcon: ({ color }) => <BarChart3 size={20} color={color} />,
         }}
@@ -64,6 +68,7 @@ export const MainTabNavigator: React.FC = () => {
         name="SettingsTab"
         component={SettingsScreen}
         options={{
+          title: 'வெற்றி நிதி மேலாண்மை',
           tabBarLabel: 'Settings',
           tabBarIcon: ({ color }) => <Settings size={20} color={color} />,
         }}
