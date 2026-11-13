@@ -20,8 +20,7 @@ export const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer
       documentTitle={{
-        enabled: true,
-        formatter: () => 'வெற்றி நிதி மேலாண்மை',
+        enabled: false,
       }}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
