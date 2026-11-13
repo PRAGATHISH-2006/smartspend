@@ -1,7 +1,7 @@
 // AppHeader: Clean modern mobile header with branding, greeting and notification badge
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Bell } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { useNotification } from '../../context/NotificationContext';
@@ -12,6 +12,7 @@ interface AppHeaderProps {
   showNotificationBell?: boolean;
   onNotificationPress?: () => void;
   rightElement?: React.ReactNode;
+  showBrandLogo?: boolean;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -20,14 +21,24 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   showNotificationBell = true,
   onNotificationPress,
   rightElement,
+  showBrandLogo = false,
 }) => {
   const { unreadCount } = useNotification();
 
   return (
     <View style={styles.container}>
-      <View style={styles.textContainer}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <View style={styles.brandingRow}>
+        {showBrandLogo && (
+          <Image
+            source={require('../../../assets/brand/emblem.png')}
+            style={styles.brandEmblem}
+            resizeMode="contain"
+          />
+        )}
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </View>
       </View>
 
       <View style={styles.actionsContainer}>
@@ -63,6 +74,16 @@ const styles = StyleSheet.create({
     paddingTop: THEME.spacing.md,
     paddingBottom: THEME.spacing.sm,
     backgroundColor: THEME.colors.background,
+  },
+  brandingRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandEmblem: {
+    width: 36,
+    height: 36,
   },
   textContainer: {
     flex: 1,

@@ -1,6 +1,6 @@
 // PWA Install Banner Component for Mobile & Web
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { Download, X, Smartphone, Sparkles } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { promptPWAInstall, subscribeToInstallPrompt } from '../../utils/pwaHelper';
@@ -52,9 +52,11 @@ export const PWAInstallBanner: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.bannerRow}>
-        <View style={styles.iconCircle}>
-          <Smartphone size={20} color="#ffffff" />
-        </View>
+        <Image
+          source={require('../../../assets/brand/app_icon.png')}
+          style={styles.pwaIcon}
+          resizeMode="contain"
+        />
 
         <View style={styles.textCol}>
           <View style={styles.titleRow}>
@@ -120,13 +122,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  iconCircle: {
+  pwaIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: '#059669',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 8,
   },
   textCol: {
     flex: 1,

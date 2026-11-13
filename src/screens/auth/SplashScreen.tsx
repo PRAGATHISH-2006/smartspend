@@ -1,9 +1,8 @@
 // SplashScreen: Initial launch screen with animation and session routing
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ShieldCheck, Sparkles } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { AuthStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -24,9 +23,11 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.brandContainer}>
-        <View style={styles.logoCircle}>
-          <ShieldCheck size={48} color="#FFFFFF" />
-        </View>
+        <Image
+          source={require('../../../assets/brand/app_icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={styles.appName}>வெற்றி நிதி மேலாண்மை</Text>
         <Text style={styles.tagline}>Intelligent Mobile Financial Engine</Text>
       </View>
@@ -52,15 +53,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 140,
   },
-  logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: THEME.borderRadius.xxl,
-    backgroundColor: THEME.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 20,
     marginBottom: THEME.spacing.lg,
-    ...THEME.shadows.glowGreen,
+    backgroundColor: '#FFFFFF',
   },
   appName: {
     fontSize: 32,

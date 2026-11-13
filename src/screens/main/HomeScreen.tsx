@@ -85,6 +85,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       <AppHeader
         title={`${getGreeting()}, ${firstName} 👋`}
         subtitle="Here is your spending overview"
+        showBrandLogo={true}
         onNotificationPress={() => setShowNotifications(true)}
       />
 

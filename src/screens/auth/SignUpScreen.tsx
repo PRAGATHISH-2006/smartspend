@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   SafeAreaView,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ShieldCheck, User as UserIcon, Mail, Lock, Check } from 'lucide-react-native';
@@ -79,9 +80,11 @@ export const SignUpScreen: React.FC<Props> = ({ navigation }) => {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoCircle}>
-              <ShieldCheck size={36} color="#FFFFFF" />
-            </View>
+            <Image
+              source={require('../../../assets/brand/app_icon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={styles.appName}>Create Account</Text>
             <Text style={styles.welcomeText}>Start tracking smart finances with வெற்றி நிதி மேலாண்மை</Text>
           </View>
@@ -182,15 +185,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: THEME.spacing.lg,
   },
-  logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: THEME.borderRadius.xxl,
-    backgroundColor: THEME.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
     marginBottom: THEME.spacing.md,
-    ...THEME.shadows.glowGreen,
   },
   appName: {
     fontSize: THEME.typography.sizes.xxl,
