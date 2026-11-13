@@ -109,7 +109,7 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                 </Text>
                 <Text style={styles.subtitle}>
                   {closedResult
-                  ? 'Surplus rolled over & cycle advanced'
+                    ? 'Surplus rolled over & cycle advanced'
                     : 'Rollover surplus balance & advance to next cycle'}
                 </Text>
               </View>
@@ -183,8 +183,8 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                   </View>
                 </View>
 
-                      {/* Rollover Surplus Preview Box */}
-                      {rolloverAmount > 0 ? (
+                {/* Rollover Surplus Preview Box */}
+                {rolloverAmount > 0 ? (
                   <View style={styles.rolloverBox}>
                     <View style={styles.rolloverHeader}>
                       <Coins size={20} color="#047857" />
@@ -195,43 +195,43 @@ export const CloseMonthModal: React.FC<CloseMonthModalProps> = ({
                       Your remaining balance of {formatINR(rolloverAmount)} will carry over directly into your next cycle wallet so you can continue spending smoothly!
                     </Text>
                   </View>
-                        ) : (
-                        <View style={styles.noRolloverBox}>
-                          <AlertTriangle size={18} color="#B45309" />
-                          <Text style={styles.noRolloverText}>
-                            Your balance is currently {formatINR(currentBalance)}. No surplus balance will be rolled over.
-                          </Text>
+                ) : (
+                  <View style={styles.noRolloverBox}>
+                    <AlertTriangle size={18} color="#B45309" />
+                    <Text style={styles.noRolloverText}>
+                      Your balance is currently {formatINR(currentBalance)}. No surplus balance will be rolled over.
+                    </Text>
                   </View>
                 )}
 
-                  {errorMsg && (
-                    <View style={styles.errorBox}>
-                      <Text style={styles.errorText}>{errorMsg}</Text>
-                    </View>
-                  )}
-
-                  {/* Action Buttons */}
-                  <View style={styles.actionRow}>
-                    <Button
-                      title={loading ? 'Closing Month...' : 'Confirm & Close This Month'}
-                      onPress={handleCloseMonth}
-                      loading={loading}
-                      disabled={loading}
-                      variant="primary"
-                      icon={<ShieldCheck size={16} color="#FFF" />}
-                      style={styles.confirmBtn}
-                    />
-
-                    <Button
-                      title="Cancel"
-                      onPress={handleModalClose}
-                      variant="subtle"
-                      style={{ marginTop: 8 }}
-                    />
+                {errorMsg && (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{errorMsg}</Text>
                   </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={styles.actionRow}>
+                  <Button
+                    title={loading ? 'Closing Month...' : 'Confirm & Close This Month'}
+                    onPress={handleCloseMonth}
+                    loading={loading}
+                    disabled={loading}
+                    variant="primary"
+                    icon={<ShieldCheck size={16} color="#FFF" />}
+                    style={styles.confirmBtn}
+                  />
+
+                  <Button
+                    title="Cancel"
+                    onPress={handleModalClose}
+                    variant="subtle"
+                    style={{ marginTop: 8 }}
+                  />
                 </View>
+              </View>
             )}
-              </ScrollView>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

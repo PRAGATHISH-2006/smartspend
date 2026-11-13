@@ -38,10 +38,14 @@ export function initPWA() {
       head.appendChild(appleStatusMeta);
     }
 
+    if (typeof document !== 'undefined') {
+      document.title = 'வெற்றி நிதி மேலாண்மை';
+    }
+
     if (!document.querySelector('meta[name="apple-mobile-web-app-title"]')) {
       const appleTitleMeta = document.createElement('meta');
       appleTitleMeta.name = 'apple-mobile-web-app-title';
-      appleTitleMeta.content = 'SmartSpend';
+      appleTitleMeta.content = 'வெற்றி நிதி மேலாண்மை';
       head.appendChild(appleTitleMeta);
     }
 

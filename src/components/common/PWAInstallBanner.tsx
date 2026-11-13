@@ -58,7 +58,7 @@ export const PWAInstallBanner: React.FC = () => {
 
         <View style={styles.textCol}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Install SmartSpend App</Text>
+            <Text style={styles.title}>Install வெற்றி நிதி மேலாண்மை App</Text>
             <View style={styles.badge}>
               <Sparkles size={10} color="#047857" />
               <Text style={styles.badgeText}>PWA</Text>

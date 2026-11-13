@@ -15,7 +15,7 @@ interface AppHeaderProps {
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
-  title = 'SmartSpend',
+  title = 'வெற்றி நிதி மேலாண்மை',
   subtitle,
   showNotificationBell = true,
   onNotificationPress,

@@ -738,7 +738,7 @@ export const SettingsScreen: React.FC<Props> = () => {
           fullWidth
         />
 
-        <Text style={styles.versionText}>SmartSpend v1.0.0 • Supabase + Resend Powered</Text>
+        <Text style={styles.versionText}>வெற்றி நிதி மேலாண்மை v1.0.0 • Supabase + Resend Powered</Text>
       </ScrollView>
 
       {/* Confirmation Dialogs */}
@@ -766,7 +766,7 @@ export const SettingsScreen: React.FC<Props> = () => {
 
       <ConfirmationDialog
         visible={showLogoutConfirm}
-        title="Sign Out of SmartSpend?"
+        title="Sign Out of வெற்றி நிதி மேலாண்மை?"
         message="Are you sure you want to end your session?"
         confirmTitle="Sign Out"
         confirmVariant="danger"

@@ -14,7 +14,7 @@ export const RootNavigator: React.FC = () => {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return <LoadingState fullScreen message="Initializing SmartSpend..." />;
+    return <LoadingState fullScreen message="Initializing வெற்றி நிதி மேலாண்மை..." />;
   }
 
   return (

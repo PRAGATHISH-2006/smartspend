@@ -83,7 +83,7 @@ export const SignUpScreen: React.FC<Props> = ({ navigation }) => {
               <ShieldCheck size={36} color="#FFFFFF" />
             </View>
             <Text style={styles.appName}>Create Account</Text>
-            <Text style={styles.welcomeText}>Start tracking smart finances with SmartSpend</Text>
+            <Text style={styles.welcomeText}>Start tracking smart finances with வெற்றி நிதி மேலாண்மை</Text>
           </View>
 
           {/* Form Card */}

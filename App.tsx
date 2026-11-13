@@ -9,6 +9,9 @@ import { initPWA } from './src/utils/pwaHelper';
 
 export default function App() {
   useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.title = 'வெற்றி நிதி மேலாண்மை';
+    }
     initPWA();
   }, []);
 

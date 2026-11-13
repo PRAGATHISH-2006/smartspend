@@ -78,7 +78,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.logoCircle}>
               <ShieldCheck size={36} color="#FFFFFF" />
             </View>
-            <Text style={styles.appName}>SmartSpend</Text>
+            <Text style={styles.appName}>வெற்றி நிதி மேலாண்மை</Text>
             <Text style={styles.welcomeText}>Welcome back! Sign in to continue</Text>
           </View>
 
