@@ -17,6 +17,7 @@ import { MainTabParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useFinancial } from '../../context/FinancialContext';
 import { AppHeader } from '../../components/common/AppHeader';
+import { LeaderInspirationBanner } from '../../components/dashboard/LeaderInspirationBanner';
 import { BalanceCard } from '../../components/dashboard/BalanceCard';
 import { SafeToSpendCard } from '../../components/dashboard/SafeToSpendCard';
 import { WarningBanner } from '../../components/dashboard/WarningBanner';
@@ -103,6 +104,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       >
         {/* PWA Mobile Install Banner */}
         <PWAInstallBanner />
+
+        {/* Leader Inspiration Banner */}
+        <LeaderInspirationBanner />
 
         {/* 1. Hero Balance Card */}
         <BalanceCard

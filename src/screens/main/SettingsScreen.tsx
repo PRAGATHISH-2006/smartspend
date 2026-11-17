@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Image,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import {
@@ -177,12 +178,39 @@ export const SettingsScreen: React.FC<Props> = () => {
         <View style={styles.card}>
           <View style={styles.profileRow}>
             <View style={styles.avatarCircle}>
-              <User size={24} color="#FFF" />
+              <Image
+                source={require('../../../assets/brand/leader_square.png')}
+                style={styles.profileAvatarImg}
+                resizeMode="cover"
+              />
             </View>
             <View style={styles.profileText}>
               <Text style={styles.profileName}>{profile?.name || user?.email?.split('@')[0] || 'User'}</Text>
               <Text style={styles.profileEmail}>{user?.email}</Text>
               <Text style={styles.currencyBadge}>Currency: INR (₹)</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Leadership & Brand Inspiration Card */}
+        <View style={[styles.card, styles.leaderCard]}>
+          <View style={styles.leaderRow}>
+            <View style={styles.leaderPhotoWrapper}>
+              <Image
+                source={require('../../../assets/brand/leader.png')}
+                style={styles.leaderPhoto}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={styles.leaderDetails}>
+              <View style={styles.leaderBadge}>
+                <Sparkles size={11} color="#EAB308" />
+                <Text style={styles.leaderBadgeText}>நமது உத்வேகம்</Text>
+              </View>
+              <Text style={styles.leaderName}>தளபதி விஜய்</Text>
+              <Text style={styles.leaderQuote}>
+                "திட்டமிட்ட சேமிப்பும், சரியான நிதி ஒழுக்கமுமே வாழ்வின் உண்மையான வெற்றி!"
+              </Text>
             </View>
           </View>
         </View>
@@ -811,12 +839,75 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: THEME.borderRadius.full,
-    backgroundColor: THEME.colors.primary,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#EAB308',
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  leaderCard: {
+    backgroundColor: '#0F172A',
+    borderColor: '#EAB308',
+    borderWidth: 1.5,
+  },
+  leaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  leaderPhotoWrapper: {
+    width: 60,
+    height: 76,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#EAB308',
+    overflow: 'hidden',
+    backgroundColor: '#1E293B',
+  },
+  leaderPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  leaderDetails: {
+    flex: 1,
+  },
+  leaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: THEME.borderRadius.full,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+  },
+  leaderBadgeText: {
+    color: '#FACC15',
+    fontSize: 10,
+    fontWeight: THEME.typography.weights.bold,
+  },
+  leaderName: {
+    color: '#EAB308',
+    fontSize: 15,
+    fontWeight: THEME.typography.weights.bold,
+    marginBottom: 4,
+  },
+  leaderQuote: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 16,
+    fontStyle: 'italic',
   },
   profileText: {
     flex: 1,

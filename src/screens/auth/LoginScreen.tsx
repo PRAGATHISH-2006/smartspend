@@ -76,11 +76,20 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         >
           {/* Brand Header */}
           <View style={styles.header}>
-            <Image
-              source={require('../../../assets/brand/app_icon.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <View style={styles.leaderFrame}>
+              <Image
+                source={require('../../../assets/brand/leader_square.png')}
+                style={styles.leaderImage}
+                resizeMode="cover"
+              />
+              <View style={styles.emblemBadge}>
+                <Image
+                  source={require('../../../assets/brand/emblem.png')}
+                  style={styles.emblemIcon}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
             <Text style={styles.appName}>வெற்றி நிதி மேலாண்மை</Text>
             <Text style={styles.welcomeText}>Welcome back! Sign in to continue</Text>
           </View>
@@ -182,11 +191,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: THEME.spacing.xl,
   },
-  logoImage: {
-    width: 76,
-    height: 76,
-    borderRadius: 16,
+  leaderFrame: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2.5,
+    borderColor: '#EAB308',
+    padding: 2,
+    backgroundColor: '#0F172A',
     marginBottom: THEME.spacing.md,
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  leaderImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+  },
+  emblemBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#0F172A',
+    borderWidth: 1.5,
+    borderColor: '#EAB308',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+  },
+  emblemIcon: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: THEME.typography.sizes.display,

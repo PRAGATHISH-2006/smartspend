@@ -13,6 +13,7 @@ interface AppHeaderProps {
   onNotificationPress?: () => void;
   rightElement?: React.ReactNode;
   showBrandLogo?: boolean;
+  showLeaderPhoto?: boolean;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -22,19 +23,28 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onNotificationPress,
   rightElement,
   showBrandLogo = false,
+  showLeaderPhoto = true,
 }) => {
   const { unreadCount } = useNotification();
 
   return (
     <View style={styles.container}>
       <View style={styles.brandingRow}>
-        {showBrandLogo && (
+        {showLeaderPhoto ? (
+          <View style={styles.leaderAvatarWrapper}>
+            <Image
+              source={require('../../../assets/brand/leader_square.png')}
+              style={styles.leaderAvatar}
+              resizeMode="cover"
+            />
+          </View>
+        ) : showBrandLogo ? (
           <Image
             source={require('../../../assets/brand/emblem.png')}
             style={styles.brandEmblem}
             resizeMode="contain"
           />
-        )}
+        ) : null}
         <View style={styles.textContainer}>
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -79,7 +89,25 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+  },
+  leaderAvatarWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#EAB308',
+    backgroundColor: '#0F172A',
+    overflow: 'hidden',
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  leaderAvatar: {
+    width: '100%',
+    height: '100%',
   },
   brandEmblem: {
     width: 36,
