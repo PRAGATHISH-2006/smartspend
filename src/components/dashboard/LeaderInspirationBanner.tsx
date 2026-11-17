@@ -1,14 +1,65 @@
-// LeaderInspirationBanner: Elegant motivational hero banner featuring Thalapathy Vijay
+// LeaderInspirationBanner: Elegant motivational hero banner featuring Thalapathy Vijay with floating & glowing animations
 
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Image, Animated, Platform } from 'react-native';
 import { Sparkles } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 
 export const LeaderInspirationBanner: React.FC = () => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const pulseScaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const floatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -5,
+          duration: 2200,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2200,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    );
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseScaleAnim, {
+          toValue: 1.05,
+          duration: 1800,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(pulseScaleAnim, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ])
+    );
+
+    floatLoop.start();
+    pulseLoop.start();
+
+    return () => {
+      floatLoop.stop();
+      pulseLoop.stop();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
+        {/* Glowing Yellow & Red Accent Halo */}
+        <Animated.View
+          style={[
+            styles.glowHalo,
+            { transform: [{ scale: pulseScaleAnim }] },
+          ]}
+        />
+
         {/* Left Content */}
         <View style={styles.contentCol}>
           <View style={styles.badgeRow}>
@@ -26,8 +77,13 @@ export const LeaderInspirationBanner: React.FC = () => {
           </View>
         </View>
 
-        {/* Right Portrait */}
-        <View style={styles.photoContainer}>
+        {/* Right Portrait with Floating Animation */}
+        <Animated.View
+          style={[
+            styles.photoContainer,
+            { transform: [{ translateY: floatAnim }] },
+          ]}
+        >
           <View style={styles.photoFrame}>
             <Image
               source={require('../../../assets/brand/leader.png')}
@@ -42,7 +98,7 @@ export const LeaderInspirationBanner: React.FC = () => {
               resizeMode="contain"
             />
           </View>
-        </View>
+        </Animated.View>
       </View>
     </View>
   );
@@ -62,12 +118,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1.5,
     borderColor: '#EAB308', // Gold border accent
-    shadowColor: '#000',
+    shadowColor: '#EAB308',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 6,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  glowHalo: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(220, 38, 38, 0.12)', // Subtle Red & Gold glow
   },
   contentCol: {
     flex: 1,

@@ -26,6 +26,10 @@ const MainTabContent: React.FC = () => {
       <Sidebar
         currentTab={activeTab}
         onSelectTab={(tabName) => {
+          if (tabName === 'Login') {
+            (navRef.current as any)?.getParent()?.navigate('Login');
+            return;
+          }
           if (navRef.current) {
             navRef.current.navigate(tabName);
           }

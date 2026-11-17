@@ -58,7 +58,10 @@ export const SignUpScreen: React.FC<Props> = ({ navigation }) => {
       if (res.error) {
         setError(res.error.message || 'Registration failed');
       } else {
-        setSuccessMessage('Account created successfully! Signing in...');
+        setSuccessMessage('Account created successfully! Redirecting...');
+        setTimeout(() => {
+          navigation.navigate('Main' as any);
+        }, 800);
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');

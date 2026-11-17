@@ -1,6 +1,6 @@
 // HomeScreen: Main financial dashboard with dynamic balances, safe-to-spend, recurring widgets and warnings
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   RefreshControl,
   SafeAreaView,
   TouchableOpacity,
+  Animated,
+  Platform,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { ArrowRight, History, FolderArchive, Sparkles } from 'lucide-react-native';
+import { ArrowRight, History, FolderArchive, Sparkles, LogIn } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -39,7 +41,7 @@ import { TodayFixedExpenseItem } from '../../types/financial';
 type Props = BottomTabScreenProps<MainTabParamList, 'HomeTab'>;
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { profile } = useAuth();
+  const { session, profile, devQuickLogin } = useAuth();
   const {
     loading,
     refreshing,
@@ -57,6 +59,25 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     extendBudgetPeriod,
     closeCurrentMonth,
   } = useFinancial();
+
+  // Animation states for smooth entrance visual effects
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideUpAnim = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 650,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(slideUpAnim, {
+        toValue: 0,
+        duration: 650,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  }, []);
 
   // Modals state
   const [showAddMoney, setShowAddMoney] = useState<boolean>(false);
@@ -85,10 +106,21 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
         title="வெற்றி நிதி மேலாண்மை"
-        subtitle={`${getGreeting()}, ${firstName}! உங்கள் நிதி மேலோட்டம்`}
+        subtitle={
+          session
+            ? `${getGreeting()}, ${firstName}! உங்கள் நிதி மேலோட்டம்`
+            : 'நாளைய வெற்றிக்கு இன்றைய நிதி மேலாண்மை • Finance for All'
+        }
         showBrandLogo={true}
         showLeaderPhoto={true}
         onNotificationPress={() => setShowNotifications(true)}
+        onLoginPress={() => {
+          if (!session) {
+            (navigation as any).navigate('Login');
+          } else {
+            navigation.navigate('SettingsTab');
+          }
+        }}
       />
 
       <ScrollView
@@ -103,42 +135,81 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           />
         }
       >
-        {/* PWA Mobile Install Banner */}
-        <PWAInstallBanner />
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
+          {/* Guest Welcome Banner when not authenticated */}
+          {!session && (
+            <View style={styles.guestBanner}>
+              <View style={styles.guestBannerHeader}>
+                <View style={styles.guestIconBadge}>
+                  <Sparkles size={16} color="#EAB308" />
+                </View>
+                <View style={styles.guestHeaderTextCol}>
+                  <Text style={styles.guestBannerTitle}>வெற்றி நிதி மேலாண்மைக்கு நல்வரவு</Text>
+                  <Text style={styles.guestBannerSubtitle}>
+                    Smart, disciplined finance management. Sign in to sync your active records, or test-drive with Fast Demo.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.guestActionRow}>
+                <TouchableOpacity
+                  style={styles.guestLoginBtn}
+                  onPress={() => (navigation as any).navigate('Login')}
+                  activeOpacity={0.8}
+                >
+                  <LogIn size={15} color="#090D16" />
+                  <Text style={styles.guestLoginBtnText}>Sign In / Login</Text>
+                </TouchableOpacity>
 
-        {/* Leader Inspiration Banner */}
-        <LeaderInspirationBanner />
+                <TouchableOpacity
+                  style={styles.guestDemoBtn}
+                  onPress={async () => {
+                    await devQuickLogin();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Sparkles size={14} color="#FACC15" />
+                  <Text style={styles.guestDemoBtnText}>Fast Demo Access</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
-        {/* Quick Month Management Hub: Close Month & Previous Details */}
-        <View style={styles.monthHubContainer}>
-          <TouchableOpacity
-            style={styles.closeMonthHubBtn}
-            onPress={() => setShowCloseMonth(true)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.hubBtnIconRed}>
-              <Sparkles size={16} color="#FFFFFF" />
-            </View>
-            <View style={styles.hubBtnTextCol}>
-              <Text style={styles.hubBtnTitleRed}>Close Month</Text>
-              <Text style={styles.hubBtnSubtitle}>Reset active & rollover</Text>
-            </View>
-          </TouchableOpacity>
+          {/* PWA Mobile Install Banner */}
+          <PWAInstallBanner />
 
-          <TouchableOpacity
-            style={styles.previousDetailsHubBtn}
-            onPress={() => navigation.navigate('PreviousDetailsTab')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.hubBtnIconYellow}>
-              <FolderArchive size={16} color="#090D16" />
-            </View>
-            <View style={styles.hubBtnTextCol}>
-              <Text style={styles.hubBtnTitleYellow}>Previous Details</Text>
-              <Text style={styles.hubBtnSubtitle}>Archived statements</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+          {/* Leader Inspiration Banner */}
+          <LeaderInspirationBanner />
+
+          {/* Quick Month Management Hub: Close Month & Previous Details */}
+          <View style={styles.monthHubContainer}>
+            <TouchableOpacity
+              style={styles.closeMonthHubBtn}
+              onPress={() => setShowCloseMonth(true)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.hubBtnIconRed}>
+                <Sparkles size={16} color="#FFFFFF" />
+              </View>
+              <View style={styles.hubBtnTextCol}>
+                <Text style={styles.hubBtnTitleRed}>Close Month</Text>
+                <Text style={styles.hubBtnSubtitle}>Reset active & rollover</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.previousDetailsHubBtn}
+              onPress={() => navigation.navigate('PreviousDetailsTab')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.hubBtnIconYellow}>
+                <FolderArchive size={16} color="#090D16" />
+              </View>
+              <View style={styles.hubBtnTextCol}>
+                <Text style={styles.hubBtnTitleYellow}>Previous Details</Text>
+                <Text style={styles.hubBtnSubtitle}>Archived statements</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
         {/* 1. Hero Balance Card */}
         <BalanceCard
@@ -224,6 +295,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             ))
           )}
         </View>
+        </Animated.View>
       </ScrollView>
 
       {/* Add Expense Modal */}
@@ -417,5 +489,93 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#94A3B8',
     marginTop: 2,
+  },
+  // Guest Banner Styles
+  guestBanner: {
+    backgroundColor: '#111726',
+    borderRadius: THEME.borderRadius.xl,
+    padding: THEME.spacing.md,
+    marginHorizontal: THEME.spacing.lg,
+    marginBottom: THEME.spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#EAB308',
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  guestBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+  },
+  guestIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.35)',
+  },
+  guestHeaderTextCol: {
+    flex: 1,
+  },
+  guestBannerTitle: {
+    color: '#FACC15',
+    fontSize: 14,
+    fontWeight: THEME.typography.weights.heavy,
+  },
+  guestBannerSubtitle: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  guestActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  guestLoginBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EAB308', // Warm Gold
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: THEME.borderRadius.lg,
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  guestLoginBtnText: {
+    color: '#090D16',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.heavy,
+  },
+  guestDemoBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: THEME.borderRadius.lg,
+  },
+  guestDemoBtnText: {
+    color: '#F87171',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.bold,
   },
 });

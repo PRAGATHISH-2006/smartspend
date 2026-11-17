@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Bell, Menu } from 'lucide-react-native';
+import { Bell, Menu, LogIn, User } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useSidebar } from '../../context/SidebarContext';
 
@@ -15,6 +16,8 @@ interface AppHeaderProps {
   rightElement?: React.ReactNode;
   showBrandLogo?: boolean;
   showLeaderPhoto?: boolean;
+  showLoginButton?: boolean;
+  onLoginPress?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -25,7 +28,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   rightElement,
   showBrandLogo = false,
   showLeaderPhoto = true,
+  showLoginButton = true,
+  onLoginPress,
 }) => {
+  const { session, profile, user } = useAuth();
   const { unreadCount } = useNotification();
   const { isDesktop, toggleMobileMenu } = useSidebar();
 
@@ -65,6 +71,37 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
       <View style={styles.actionsContainer}>
         {rightElement}
+
+        {/* Top Header Login / User Indicator Button */}
+        {showLoginButton && (
+          !session ? (
+            <TouchableOpacity
+              style={styles.loginBtn}
+              onPress={onLoginPress}
+              activeOpacity={0.8}
+              accessibilityLabel="Login to Account"
+            >
+              <View style={styles.loginIconCircle}>
+                <LogIn size={13} color="#090D16" />
+              </View>
+              <Text style={styles.loginBtnText}>Login</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.userProfilePill}
+              onPress={onLoginPress}
+              activeOpacity={0.8}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={styles.onlineDot} />
+              <User size={13} color="#FACC15" />
+              <Text style={styles.userProfileText} numberOfLines={1}>
+                {profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+              </Text>
+            </TouchableOpacity>
+          )
+        )}
+
         {showNotificationBell && (
           <TouchableOpacity
             style={styles.bellButton}
@@ -72,7 +109,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             activeOpacity={0.7}
             accessibilityLabel="Notifications"
           >
-            <Bell size={22} color={THEME.colors.textPrimary} />
+            <Bell size={20} color={THEME.colors.textPrimary} />
             {unreadCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
@@ -153,6 +190,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: THEME.spacing.sm,
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EAB308', // Warm Gold
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: THEME.borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: '#FACC15',
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  loginIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginBtnText: {
+    color: '#090D16',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.heavy,
+    letterSpacing: 0.3,
+  },
+  userProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: THEME.borderRadius.full,
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    maxWidth: 130,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#10B981',
+  },
+  userProfileText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.bold,
   },
   bellButton: {
     width: 42,

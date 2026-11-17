@@ -13,21 +13,10 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   const { session, loading, devQuickLogin } = useAuth();
 
   useEffect(() => {
-    let active = true;
     if (!loading) {
-      if (!session) {
-        // Land directly on Home Page by auto-initializing the workspace
-        devQuickLogin().catch(() => {
-          if (active) {
-            navigation.replace('Login');
-          }
-        });
-      }
+      navigation.replace('Main' as any);
     }
-    return () => {
-      active = false;
-    };
-  }, [session, loading, navigation, devQuickLogin]);
+  }, [loading, navigation]);
 
   return (
     <View style={styles.container}>

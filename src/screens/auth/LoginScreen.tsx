@@ -13,7 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ShieldCheck, Mail, Lock, Sparkles } from 'lucide-react-native';
+import { ShieldCheck, Mail, Lock, Sparkles, ArrowLeft } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { AuthStackParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -43,6 +43,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       const res = await signIn(email, password);
       if (res.error) {
         setError(res.error.message || 'Invalid email or password');
+      } else {
+        navigation.navigate('Main' as any);
       }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
@@ -56,6 +58,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     setDemoLoading(true);
     try {
       await devQuickLogin();
+      navigation.navigate('Main' as any);
     } catch (err: any) {
       setError(err.message || 'Failed to initialize demo session');
     } finally {
@@ -65,6 +68,18 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Top Navigation Back to Home */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backHomeBtn}
+          onPress={() => navigation.navigate('Main' as any)}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={16} color="#EAB308" />
+          <Text style={styles.backHomeBtnText}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
@@ -177,6 +192,27 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: THEME.colors.background,
+  },
+  topBar: {
+    paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.md,
+  },
+  backHomeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: THEME.borderRadius.full,
+    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+    alignSelf: 'flex-start',
+  },
+  backHomeBtnText: {
+    color: '#FACC15',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.bold,
   },
   container: {
     flex: 1,

@@ -1,11 +1,12 @@
 // Navigation Parameter Lists and Screen Props
 
 export type AuthStackParamList = {
-  Splash: undefined;
+  Splash?: undefined;
   Login: undefined;
   SignUp: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email?: string } | undefined;
+  Main?: undefined;
 };
 
 export type MainTabParamList = {
@@ -18,6 +19,10 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
-  Auth: undefined;
   Main: undefined;
+  Login: undefined;
+  SignUp: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { email?: string } | undefined;
+  Splash?: undefined;
 };

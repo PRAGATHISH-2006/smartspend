@@ -261,7 +261,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setManualExpenses([]);
       setFixedExpenses([]);
       setOccurrences([]);
-      setCategories([]);
+      setCategories(
+        DEFAULT_CATEGORIES.map((c) => ({
+          id: c.id,
+          user_id: 'guest',
+          name: c.name,
+          icon: c.icon,
+          color: c.color,
+          created_at: new Date().toISOString(),
+        }))
+      );
       setBudgetSettings(null);
       setClosedMonths([]);
       setLoading(false);

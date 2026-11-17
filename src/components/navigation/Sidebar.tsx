@@ -21,8 +21,11 @@ import {
   Sparkles,
   X,
   ChevronRight,
+  LogIn,
+  User,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
+import { useAuth } from '../../context/AuthContext';
 import { useFinancial } from '../../context/FinancialContext';
 import { useSidebar } from '../../context/SidebarContext';
 import { CloseMonthModal } from '../dashboard/CloseMonthModal';
@@ -89,6 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
 }) => {
+  const { session, profile, user } = useAuth();
   const { isDesktop, mobileMenuVisible, closeMobileMenu } = useSidebar();
   const { summary, closeCurrentMonth } = useFinancial();
   const [showCloseModal, setShowCloseModal] = useState<boolean>(false);
@@ -135,6 +139,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Text style={styles.leaderName}>தளபதி விஜய்</Text>
         </View>
       </View>
+
+      {/* User Status / Login Action in Sidebar */}
+      {!session ? (
+        <TouchableOpacity
+          style={styles.sidebarLoginBtn}
+          onPress={() => handleNavPress('Login')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.sidebarLoginIconCircle}>
+            <LogIn size={13} color="#090D16" />
+          </View>
+          <View style={styles.sidebarLoginTextCol}>
+            <Text style={styles.sidebarLoginTitle}>Sign In / Login</Text>
+            <Text style={styles.sidebarLoginSub}>Access your account</Text>
+          </View>
+          <ChevronRight size={14} color="#090D16" />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.sidebarUserRow}>
+          <View style={styles.sidebarUserStatusDot} />
+          <Text style={styles.sidebarUserName} numberOfLines={1}>
+            {profile?.name || user?.email?.split('@')[0] || 'Active Member'}
+          </Text>
+        </View>
+      )}
 
       {/* 3. Navigation Links List */}
       <ScrollView showsVerticalScrollIndicator={false} style={styles.navScroll}>
@@ -341,6 +370,66 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
     fontSize: 13,
     fontWeight: THEME.typography.weights.bold,
+  },
+  sidebarLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAB308',
+    borderRadius: THEME.borderRadius.lg,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    gap: 8,
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sidebarLoginIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sidebarLoginTextCol: {
+    flex: 1,
+  },
+  sidebarLoginTitle: {
+    color: '#090D16',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.heavy,
+  },
+  sidebarLoginSub: {
+    color: '#451A03',
+    fontSize: 9,
+    fontWeight: THEME.typography.weights.semibold,
+  },
+  sidebarUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.25)',
+    marginBottom: 10,
+  },
+  sidebarUserStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  sidebarUserName: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.bold,
+    flex: 1,
   },
   navScroll: {
     flex: 1,
