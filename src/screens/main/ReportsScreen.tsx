@@ -1,4 +1,4 @@
-// ReportsScreen: Analytics and financial reports with charts, instant preview, and email dispatcher
+// ReportsScreen: Complete Redesign — High-End Financial Analytics Dashboard with Yellow and Red Theme
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -10,44 +10,57 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
-  Linking,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import {
+  BarChart3,
+  Calendar,
+  Sparkles,
   Mail,
   Send,
-  Calendar,
-  CheckCircle2,
-  Sparkles,
-  AlertCircle,
   Eye,
-  Share2,
+  FileSpreadsheet,
+  Layers,
+  ArrowRight,
+  TrendingUp,
+  Receipt,
+  FolderArchive,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useFinancial } from '../../context/FinancialContext';
 import { AppHeader } from '../../components/common/AppHeader';
-import { FinancialSummaryCards } from '../../components/reports/FinancialSummaryCards';
-import { CategoryPieChart } from '../../components/reports/CategoryPieChart';
-import { ExpenseComparisonBar } from '../../components/reports/ExpenseComparisonBar';
-import { SpendingTrendChart } from '../../components/reports/SpendingTrendChart';
-import { RecurringPerformanceTable } from '../../components/reports/RecurringPerformanceTable';
-import { PreviousMonthsSection } from '../../components/reports/PreviousMonthsSection';
-import { NotificationsModal } from '../modals/NotificationsModal';
-import { Button } from '../../components/common/Button';
 import {
-  triggerWeeklyReportEmail,
+  AnalyticsHeader,
+  MonthOption,
+} from '../../components/analytics/AnalyticsHeader';
+import { AnalyticsSummaryCards } from '../../components/analytics/AnalyticsSummaryCards';
+import {
+  DailyCashFlowLineChart,
+  DayCashFlowPoint,
+} from '../../components/analytics/DailyCashFlowLineChart';
+import { CategoryDonutChart } from '../../components/analytics/CategoryDonutChart';
+import {
+  HistoricalComparisonBarChart,
+  MonthComparisonItem,
+} from '../../components/analytics/HistoricalComparisonBarChart';
+import { ExpenseCard } from '../../components/expenses/ExpenseCard';
+import { NotificationsModal } from '../modals/NotificationsModal';
+import { ClosedMonthDetailsModal } from '../../components/reports/ClosedMonthDetailsModal';
+import {
   triggerMonthlyReportEmail,
   compileUserReport,
-  createMailtoUrl,
 } from '../../services/emailReportService';
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { formatINR } from '../../utils/currency';
+import { CategorySpending, UnifiedTransaction, ClosedMonthRecord } from '../../types/financial';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'ReportsTab'>;
 
-export const ReportsScreen: React.FC<Props> = () => {
+export const ReportsScreen: React.FC<Props> = ({ navigation }) => {
   const { user, profile } = useAuth();
   const {
     refreshing,
@@ -55,274 +68,329 @@ export const ReportsScreen: React.FC<Props> = () => {
     summary,
     moneyAdditions,
     manualExpenses,
-    fixedExpenses,
     occurrences,
     categoryBreakdown,
     closedMonths,
-    deleteClosedMonth,
+    unifiedTransactions,
   } = useFinancial();
 
-  const [periodTab, setPeriodTab] = useState<'week' | 'month' | 'previous'>('month');
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
+
+  // Selected Month: 'current' or closedMonth.id
+  const [selectedMonthId, setSelectedMonthId] = useState<string>('current');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [timelineFilter, setTimelineFilter] = useState<'all' | '7d' | '14d'>('all');
+
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
-  const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
-  const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
-  const [sendingWeekly, setSendingWeekly] = useState<boolean>(false);
-  const [sendingMonthly, setSendingMonthly] = useState<boolean>(false);
-  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+  const [selectedArchiveForModal, setSelectedArchiveForModal] = useState<ClosedMonthRecord | null>(null);
+  const [emailSending, setEmailSending] = useState<boolean>(false);
+  const [emailStatusMsg, setEmailStatusMsg] = useState<string | null>(null);
 
   const registeredEmail = (user?.email || profile?.email || '').trim();
 
-  // Filter data according to selected tab (week or month or previous)
-  const now = new Date();
-  const dateRange = useMemo(() => {
-    if (periodTab === 'week') {
-      const start = startOfWeek(now, { weekStartsOn: 1 });
-      const end = endOfWeek(now, { weekStartsOn: 1 });
-      return {
-        startStr: format(start, 'yyyy-MM-dd'),
-        endStr: format(end, 'yyyy-MM-dd'),
-        label: `${format(start, 'd MMM')} - ${format(end, 'd MMM yyyy')}`,
-      };
-    } else if (periodTab === 'month') {
-      const start = startOfMonth(now);
-      const end = endOfMonth(now);
-      return {
-        startStr: format(start, 'yyyy-MM-dd'),
-        endStr: format(end, 'yyyy-MM-dd'),
-        label: format(now, 'MMMM yyyy'),
-      };
-    } else {
-      return {
-        startStr: '',
-        endStr: '',
-        label: 'Previous Months Archive',
-      };
-    }
-  }, [periodTab]);
+  // 1. Month Options for dropdown
+  const monthOptions: MonthOption[] = useMemo(() => {
+    const activeMonthName = format(new Date(), 'MMMM yyyy');
+    const options: MonthOption[] = [
+      {
+        id: 'current',
+        label: `${activeMonthName} (Active Cycle)`,
+        isArchived: false,
+        periodText: 'Live real-time financial tracking',
+      },
+    ];
 
-  // Period-filtered additions
-  const periodAdditions = useMemo(() => {
-    return moneyAdditions.filter((a) => {
-      const d = a.added_at.split('T')[0];
-      return d >= dateRange.startStr && d <= dateRange.endStr;
-    });
-  }, [moneyAdditions, dateRange]);
-
-  const periodMoneyAdded = periodAdditions.reduce((sum, a) => sum + Number(a.amount), 0);
-
-  // Period-filtered manual expenses
-  const periodManual = useMemo(() => {
-    return manualExpenses.filter((e) => {
-      return e.expense_date >= dateRange.startStr && e.expense_date <= dateRange.endStr;
-    });
-  }, [manualExpenses, dateRange]);
-
-  const periodManualTotal = periodManual.reduce((sum, e) => sum + Number(e.amount), 0);
-
-  // Period-filtered fixed occurrences
-  const periodOccurrences = useMemo(() => {
-    return occurrences.filter((o) => {
-      return o.occurrence_date >= dateRange.startStr && o.occurrence_date <= dateRange.endStr;
-    });
-  }, [occurrences, dateRange]);
-
-  const periodFixedCompleted = periodOccurrences
-    .filter((o) => o.status === 'completed')
-    .reduce((sum, o) => sum + Number(o.amount), 0);
-
-  const periodTotalExpenses = periodManualTotal + periodFixedCompleted;
-  const startingBalance = summary.currentBalance + periodTotalExpenses - periodMoneyAdded;
-
-  // 7-day trend calculation
-  const trendData = useMemo(() => {
-    const days: { date: string; dayLabel: string; amount: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = subDays(now, i);
-      const dStr = format(d, 'yyyy-MM-dd');
-      const dayLabel = format(d, 'EEE');
-
-      const manualDay = manualExpenses
-        .filter((e) => e.expense_date === dStr)
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-
-      const fixedDay = occurrences
-        .filter((o) => o.occurrence_date === dStr && o.status === 'completed')
-        .reduce((sum, o) => sum + Number(o.amount), 0);
-
-      days.push({
-        date: dStr,
-        dayLabel,
-        amount: manualDay + fixedDay,
+    closedMonths.forEach((m) => {
+      options.push({
+        id: m.id,
+        label: m.monthName,
+        isArchived: true,
+        periodText: `${m.periodStart} to ${m.periodEnd}`,
       });
-    }
-    return days;
-  }, [manualExpenses, occurrences]);
+    });
 
-  // Recurring performance summary
-  const recurringPerformance = useMemo(() => {
-    return fixedExpenses
-      .map((rule) => {
-        const ruleOccs = periodOccurrences.filter((o) => o.fixed_expense_id === rule.id);
-        const paidDays = ruleOccs.filter((o) => o.status === 'completed').length;
-        const skippedDays = ruleOccs.filter((o) => o.status === 'skipped').length;
-        const totalPaid = ruleOccs
-          .filter((o) => o.status === 'completed')
+    return options;
+  }, [closedMonths]);
+
+  // 2. Active Month Data Resolver (resolves either Current Live Cycle or Archived Month)
+  const isCurrentMonth = selectedMonthId === 'current';
+  const selectedArchive = useMemo(() => {
+    return closedMonths.find((m) => m.id === selectedMonthId) || null;
+  }, [closedMonths, selectedMonthId]);
+
+  const monthLabel = isCurrentMonth
+    ? format(new Date(), 'MMMM yyyy')
+    : selectedArchive?.monthName || 'Selected Month';
+
+  // Metrics for Top Cards
+  const totalIncome = isCurrentMonth
+    ? summary.totalMoneyAdded
+    : selectedArchive?.totalMoneyAdded || 0;
+
+  const totalExpenses = isCurrentMonth
+    ? summary.totalExpenses
+    : selectedArchive?.totalWithdrawn || 0;
+
+  const netSavings = isCurrentMonth
+    ? summary.currentBalance
+    : selectedArchive?.closingBalance || 0;
+
+  const activeDaysCount = useMemo(() => {
+    if (isCurrentMonth) {
+      return Math.max(1, new Date().getDate());
+    }
+    return 30; // standard month cycle
+  }, [isCurrentMonth]);
+
+  const dailyAverageSpend = activeDaysCount > 0 ? totalExpenses / activeDaysCount : 0;
+
+  const inflowCount = isCurrentMonth
+    ? moneyAdditions.length
+    : selectedArchive?.transactions?.filter((t) => t.rawType === 'income').length || 0;
+
+  const outflowCount = isCurrentMonth
+    ? manualExpenses.length + occurrences.filter((o) => o.status === 'completed').length
+    : selectedArchive?.transactions?.filter((t) => t.rawType === 'expense' || t.rawType === 'skipped').length || 0;
+
+  // 3. Transactions of the selected month
+  const monthTransactions: UnifiedTransaction[] = useMemo(() => {
+    if (isCurrentMonth) {
+      return unifiedTransactions;
+    }
+    return selectedArchive?.transactions || [];
+  }, [isCurrentMonth, unifiedTransactions, selectedArchive]);
+
+  // Available unique categories in this month
+  const availableCategories = useMemo(() => {
+    return Array.from(
+      new Set(monthTransactions.map((tx) => tx.category).filter(Boolean))
+    );
+  }, [monthTransactions]);
+
+  // Filtered transactions by category
+  const filteredTransactions = useMemo(() => {
+    if (!selectedCategory) return monthTransactions;
+    return monthTransactions.filter((tx) => tx.category === selectedCategory);
+  }, [monthTransactions, selectedCategory]);
+
+  // 4. Daily Cash Flow Data Generation
+  const cashFlowTrendData: DayCashFlowPoint[] = useMemo(() => {
+    const today = new Date();
+    const daysInMonth = isCurrentMonth
+      ? today.getDate()
+      : 30;
+
+    const points: DayCashFlowPoint[] = [];
+
+    // Base date
+    const monthStart = isCurrentMonth
+      ? startOfMonth(today)
+      : selectedArchive
+      ? parseISO(selectedArchive.periodStart)
+      : startOfMonth(today);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(monthStart.getFullYear(), monthStart.getMonth(), day);
+      const dStr = format(d, 'yyyy-MM-dd');
+      const dayLabel = format(d, 'd MMM');
+
+      let dayIncome = 0;
+      let dayExpense = 0;
+
+      if (isCurrentMonth) {
+        dayIncome = moneyAdditions
+          .filter((a) => a.added_at.startsWith(dStr))
+          .reduce((sum, a) => sum + Number(a.amount), 0);
+
+        const manualDay = manualExpenses
+          .filter((e) => e.expense_date === dStr)
+          .reduce((sum, e) => sum + Number(e.amount), 0);
+
+        const fixedDay = occurrences
+          .filter((o) => o.occurrence_date === dStr && o.status === 'completed')
           .reduce((sum, o) => sum + Number(o.amount), 0);
 
-        return {
-          name: rule.name,
-          paidDays,
-          skippedDays,
-          amountPaid: totalPaid,
-        };
-      })
-      .filter((item) => item.paidDays > 0 || item.skippedDays > 0);
-  }, [fixedExpenses, periodOccurrences]);
+        dayExpense = manualDay + fixedDay;
+      } else if (selectedArchive?.transactions) {
+        dayIncome = selectedArchive.transactions
+          .filter((t) => t.date.startsWith(dStr) && t.rawType === 'income')
+          .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  // Trigger Instant Email Report to the logged-in user's email
-  const handleSendReport = async (type: 'weekly' | 'monthly') => {
-    if (!user?.id) return;
-    if (type === 'weekly') setSendingWeekly(true);
-    else setSendingMonthly(true);
+        dayExpense = selectedArchive.transactions
+          .filter(
+            (t) =>
+              t.date.startsWith(dStr) &&
+              (t.rawType === 'expense' || t.rawType === 'skipped')
+          )
+          .reduce((sum, t) => sum + Number(t.amount), 0);
+      }
 
-    setEmailSuccessMsg(null);
-    setEmailErrorMsg(null);
+      // If category filter is applied, only consider transactions in that category for expenses
+      if (selectedCategory) {
+        if (isCurrentMonth) {
+          const manualCat = manualExpenses
+            .filter((e) => e.expense_date === dStr && e.category_name === selectedCategory)
+            .reduce((sum, e) => sum + Number(e.amount), 0);
+
+          const fixedCat = occurrences
+            .filter((o) => o.occurrence_date === dStr && o.status === 'completed' && (o as any).category === selectedCategory)
+            .reduce((sum, o) => sum + Number(o.amount), 0);
+
+          dayExpense = manualCat + fixedCat;
+        } else if (selectedArchive?.transactions) {
+          dayExpense = selectedArchive.transactions
+            .filter((t) => t.date.startsWith(dStr) && t.category === selectedCategory && (t.rawType === 'expense' || t.rawType === 'skipped'))
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+        }
+      }
+
+      points.push({
+        day,
+        dateStr: dStr,
+        dayLabel,
+        income: dayIncome,
+        expense: dayExpense,
+      });
+    }
+
+    // Apply Timeline Filter
+    if (timelineFilter === '7d') {
+      return points.slice(-7);
+    } else if (timelineFilter === '14d') {
+      return points.slice(-14);
+    }
+    return points;
+  }, [
+    isCurrentMonth,
+    selectedArchive,
+    moneyAdditions,
+    manualExpenses,
+    occurrences,
+    selectedCategory,
+    timelineFilter,
+  ]);
+
+  // 5. Category Spending Breakdown for Donut Chart
+  const activeCategoryBreakdown: CategorySpending[] = useMemo(() => {
+    if (isCurrentMonth) {
+      return categoryBreakdown;
+    }
+    if (selectedArchive?.categoryBreakdown && selectedArchive.categoryBreakdown.length > 0) {
+      return selectedArchive.categoryBreakdown;
+    }
+
+    // Derive breakdown from archived transactions if needed
+    const catMap: Record<string, number> = {};
+    const txs = selectedArchive?.transactions || [];
+    let total = 0;
+
+    txs.forEach((t) => {
+      if (t.rawType === 'expense' || t.rawType === 'skipped') {
+        const cat = t.category || 'Other';
+        catMap[cat] = (catMap[cat] || 0) + Number(t.amount);
+        total += Number(t.amount);
+      }
+    });
+
+    return Object.entries(catMap).map(([name, amount]) => ({
+      name,
+      amount,
+      percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+      color: '',
+      icon: '',
+    }));
+  }, [isCurrentMonth, categoryBreakdown, selectedArchive]);
+
+  // 6. Historical Multi-Month Comparison Bar Chart Data
+  const historicalBarData: MonthComparisonItem[] = useMemo(() => {
+    const list: MonthComparisonItem[] = [];
+
+    // Chronological archived months (up to last 5)
+    const sortedArchives = [...closedMonths].reverse().slice(-5);
+    sortedArchives.forEach((m) => {
+      const parts = m.monthName.split(' ');
+      list.push({
+        id: m.id,
+        monthName: m.monthName,
+        shortName: parts[0] ? parts[0].substring(0, 3) : m.monthName,
+        totalIncome: m.totalMoneyAdded,
+        totalExpense: m.totalWithdrawn,
+        netSurplus: m.closingBalance,
+        isCurrent: false,
+      });
+    });
+
+    // Append Current active cycle
+    const currentName = format(new Date(), 'MMM yyyy');
+    list.push({
+      id: 'current',
+      monthName: `${currentName} (Active)`,
+      shortName: `${format(new Date(), 'MMM')}*`,
+      totalIncome: summary.totalMoneyAdded,
+      totalExpense: summary.totalExpenses,
+      netSurplus: summary.currentBalance,
+      isCurrent: true,
+    });
+
+    return list;
+  }, [closedMonths, summary]);
+
+  // 7. Email Report Dispatcher Handler
+  const handleDispatchEmail = async () => {
+    if (!registeredEmail) {
+      Alert.alert('Email Missing', 'Please update your email in Settings to dispatch reports.');
+      return;
+    }
+
+    setEmailSending(true);
+    setEmailStatusMsg(null);
 
     try {
-      let res;
-      if (type === 'weekly') {
-        res = await triggerWeeklyReportEmail({ userId: user.id });
-      } else {
-        res = await triggerMonthlyReportEmail({ userId: user.id });
-      }
-
+      const res = await triggerMonthlyReportEmail();
       if (res.success) {
-        setEmailSuccessMsg(res.message);
-        Alert.alert('Report Dispatched! 🚀', res.message);
+        setEmailStatusMsg(`Monthly statement sent successfully to ${registeredEmail}`);
       } else {
-        setEmailErrorMsg(res.message);
-        Alert.alert(
-          'Email Dispatch Notice',
-          res.message,
-          [
-            { text: 'Preview Report', onPress: () => handlePreviewReport(type) },
-            { text: 'Open in Mail App', onPress: () => handleOpenMailApp(type) },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
+        setEmailStatusMsg(res.error || 'Failed to dispatch email statement.');
       }
     } catch (err: any) {
-      const errMsg = err.message || 'Failed to dispatch report.';
-      setEmailErrorMsg(errMsg);
-      Alert.alert('Error', errMsg);
+      setEmailStatusMsg(err.message || 'Error dispatching email.');
     } finally {
-      setSendingWeekly(false);
-      setSendingMonthly(false);
+      setEmailSending(false);
     }
   };
 
-  // Preview or Print Full HTML Report directly
-  const handlePreviewReport = async (type: 'weekly' | 'monthly') => {
+  const handlePreviewReport = async () => {
     if (!user?.id) return;
-    setPreviewLoading(true);
     try {
       const compiled = await compileUserReport({
         userId: user.id,
-        startDate: dateRange.startStr,
-        endDate: dateRange.endStr,
-        reportType: type,
+        startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+        endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+        reportType: 'monthly',
       });
 
-      if (!compiled) {
-        Alert.alert('Error', 'Unable to compile financial report data.');
-        return;
-      }
+      if (!compiled?.htmlContent) return;
 
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         const blob = new Blob([compiled.htmlContent], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
-        const win = window.open(url, '_blank');
-        if (!win) {
-          Alert.alert('Popup Blocked', 'Please allow popups to view the full report.');
-        }
+        window.open(url, '_blank');
       } else {
-        // Mobile fallback: open mail app with summary
-        handleOpenMailApp(type);
+        Alert.alert('Report Preview', 'Full visual report prepared.');
       }
     } catch (err: any) {
-      Alert.alert('Preview Error', err.message || 'Failed to preview report');
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  // Open User's default Email Client (Gmail/Outlook/Apple Mail)
-  const handleOpenMailApp = async (type: 'weekly' | 'monthly') => {
-    if (!user?.id) return;
-    try {
-      const compiled = await compileUserReport({
-        userId: user.id,
-        startDate: dateRange.startStr,
-        endDate: dateRange.endStr,
-        reportType: type,
-      });
-
-      if (!compiled) return;
-
-      const subject = `SmartSpend ${type === 'monthly' ? 'Monthly' : 'Weekly'} Expense Report (${dateRange.label})`;
-      const mailtoUrl = createMailtoUrl({
-        to: registeredEmail,
-        subject,
-        reportData: compiled.reportData,
-      });
-
-      await Linking.openURL(mailtoUrl);
-    } catch (err: any) {
-      console.warn('Error opening mail client:', err);
-      Alert.alert('Mail App', 'Unable to open your email client automatically.');
+      Alert.alert('Preview Error', err.message || 'Failed to generate preview.');
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
-        title="Financial Reports"
-        subtitle={dateRange.label}
+        title="Reports & Analytics"
+        subtitle={`நிதியியல் அறிக்கைகள் • ${monthLabel}`}
         onNotificationPress={() => setShowNotifications(true)}
       />
-
-      {/* Period Toggle */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabBtn, periodTab === 'week' && styles.tabBtnActive]}
-          onPress={() => setPeriodTab('week')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabBtnText, periodTab === 'week' && styles.tabBtnTextActive]}>
-            This Week
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, periodTab === 'month' && styles.tabBtnActive]}
-          onPress={() => setPeriodTab('month')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabBtnText, periodTab === 'month' && styles.tabBtnTextActive]}>
-            This Month
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, periodTab === 'previous' && styles.tabBtnActive]}
-          onPress={() => setPeriodTab('previous')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabBtnText, periodTab === 'previous' && styles.tabBtnTextActive]}>
-            Previous Months {closedMonths.length > 0 ? `(${closedMonths.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -331,157 +399,168 @@ export const ReportsScreen: React.FC<Props> = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refreshData}
-            colors={[THEME.colors.primary]}
-            tintColor={THEME.colors.primary}
+            tintColor="#DC2626"
+            colors={['#DC2626', '#EAB308']}
           />
         }
       >
-        {periodTab === 'previous' ? (
-          /* Focused Previous Months Archive Tab */
-          <View>
-            <PreviousMonthsSection
-              closedMonths={closedMonths}
-              onDeleteClosedMonth={deleteClosedMonth}
+        {/* 1. Month Selector & Filters Header */}
+        <AnalyticsHeader
+          selectedMonthId={selectedMonthId}
+          onSelectMonthId={setSelectedMonthId}
+          monthOptions={monthOptions}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          availableCategories={availableCategories}
+          timelineFilter={timelineFilter}
+          onSelectTimeline={setTimelineFilter}
+        />
+
+        {/* 2. Top-Level Summary Metric Cards */}
+        <AnalyticsSummaryCards
+          totalIncome={totalIncome}
+          totalExpenses={totalExpenses}
+          netSavings={netSavings}
+          dailyAverage={dailyAverageSpend}
+          daysCount={activeDaysCount}
+          inflowCount={inflowCount}
+          outflowCount={outflowCount}
+        />
+
+        {/* 3. Main Dashboard Charts Grid */}
+        <View style={isDesktop ? styles.desktopChartsRow : styles.mobileChartsCol}>
+          {/* Daily Cash Flow Trend Line Chart */}
+          <View style={isDesktop ? styles.chartColLeft : styles.chartColFull}>
+            <DailyCashFlowLineChart
+              data={cashFlowTrendData}
+              monthLabel={monthLabel}
             />
           </View>
-        ) : (
-          /* Weekly or Monthly Active Analytics */
-          <View>
-            {/* 1. Summary Cards */}
-            <FinancialSummaryCards
-              startingBalance={startingBalance}
-              moneyAdded={periodMoneyAdded}
-              manualExpenses={periodManualTotal}
-              fixedExpenses={periodFixedCompleted}
-              totalExpenses={periodTotalExpenses}
-              remainingBalance={summary.currentBalance}
-              upcomingFixedExpenses={summary.upcomingFixedExpenses}
-              safeToSpend={summary.safeToSpend}
-            />
 
-            {/* 2. Category Breakdown Donut / Progress */}
-            <CategoryPieChart
-              categories={categoryBreakdown}
-              totalExpenses={summary.totalExpenses}
-            />
-
-            {/* 3. Fixed vs Manual Spending Comparison */}
-            <ExpenseComparisonBar
-              manualExpenses={periodManualTotal}
-              fixedExpenses={periodFixedCompleted}
-            />
-
-            {/* 4. 7-Day Spending Trend */}
-            <SpendingTrendChart data={trendData} />
-
-            {/* 5. Recurring Performance Table */}
-            <RecurringPerformanceTable items={recurringPerformance} />
-
-            {/* 6. Previous Month Details Section */}
-            <PreviousMonthsSection
-              closedMonths={closedMonths}
-              onDeleteClosedMonth={deleteClosedMonth}
+          {/* Spending Category Breakdown Donut Chart */}
+          <View style={isDesktop ? styles.chartColRight : styles.chartColFull}>
+            <CategoryDonutChart
+              categories={activeCategoryBreakdown}
+              totalExpenses={totalExpenses}
             />
           </View>
-        )}
+        </View>
 
-        {/* 6. Instant Email Report Card (Sent to Logged-in User's Email) */}
-        <View style={styles.emailCard}>
-          <View style={styles.emailTopRow}>
-            <View style={styles.emailIconCircle}>
-              <Mail size={22} color={THEME.colors.indigo} />
+        {/* 4. Historical Multi-Month Comparison Bar Chart */}
+        <HistoricalComparisonBarChart
+          data={historicalBarData}
+          selectedMonthId={selectedMonthId}
+          onSelectMonth={(id) => setSelectedMonthId(id)}
+        />
+
+        {/* 5. Statement Export & Email Audit Dispatcher */}
+        <View style={styles.exportBarCard}>
+          <View style={styles.exportBarLeft}>
+            <View style={styles.mailIconCircle}>
+              <Mail size={18} color="#EAB308" />
             </View>
-            <View style={styles.emailTextCol}>
-              <View style={styles.emailHeaderRow}>
-                <Text style={styles.emailTitle}>
-                  {periodTab === 'week' ? 'Instant Weekly Report' : 'Instant Monthly Report'}
-                </Text>
-                <View style={styles.resendBadge}>
-                  <Text style={styles.resendBadgeText}>To Your Email</Text>
-                </View>
-              </View>
-              <Text style={styles.emailDesc}>
-                {periodTab === 'week'
-                  ? 'Dispatch your 7-day spending summary and expense breakdown directly to:'
-                  : 'Dispatch your full monthly financial digest and category breakdown directly to:'}{' '}
-                <Text style={{ fontWeight: 'bold', color: THEME.colors.primaryDark }}>
-                  {registeredEmail || 'your registered email'}
-                </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.exportBarTitle}>Monthly Statement & Audit Dispatcher</Text>
+              <Text style={styles.exportBarSub}>
+                Send complete monthly financial statement to {registeredEmail || 'your email'}
               </Text>
             </View>
           </View>
 
-          {/* Success Message Banner */}
-          {emailSuccessMsg && (
-            <View style={styles.successBanner}>
-              <CheckCircle2 size={16} color={THEME.colors.primaryDark} />
-              <Text style={styles.successText}>{emailSuccessMsg}</Text>
-            </View>
-          )}
+          <View style={styles.exportActionRow}>
+            <TouchableOpacity
+              style={styles.previewBtn}
+              onPress={handlePreviewReport}
+              activeOpacity={0.8}
+            >
+              <Eye size={14} color="#CBD5E1" />
+              <Text style={styles.previewBtnText}>Preview HTML</Text>
+            </TouchableOpacity>
 
-          {/* Notice / Limitation Banner */}
-          {emailErrorMsg && (
-            <View style={styles.errorBanner}>
-              <AlertCircle size={16} color={THEME.colors.warning} />
-              <Text style={styles.errorText}>{emailErrorMsg}</Text>
-            </View>
-          )}
-
-          {/* Main Action Buttons */}
-          <View style={styles.actionButtonsCol}>
-            {periodTab === 'week' ? (
-              <Button
-                title="Send Instant Report for This Week"
-                onPress={() => handleSendReport('weekly')}
-                variant="primary"
-                size="md"
-                loading={sendingWeekly}
-                icon={<Send size={16} color="#FFF" />}
-                fullWidth
-              />
-            ) : (
-              <Button
-                title="Send Instant Report for This Month"
-                onPress={() => handleSendReport('monthly')}
-                variant="primary"
-                size="md"
-                loading={sendingMonthly}
-                icon={<Send size={16} color="#FFF" />}
-                fullWidth
-              />
-            )}
-
-            {/* Instant Preview & Print Option */}
-            <View style={styles.secondaryActionsRow}>
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => handlePreviewReport(periodTab === 'week' ? 'weekly' : 'monthly')}
-                disabled={previewLoading}
-                activeOpacity={0.7}
-              >
-                <Eye size={16} color={THEME.colors.primary} />
-                <Text style={styles.secondaryBtnText}>
-                  {previewLoading ? 'Loading...' : 'Preview & Print Report'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => handleOpenMailApp(periodTab === 'week' ? 'weekly' : 'monthly')}
-                activeOpacity={0.7}
-              >
-                <Share2 size={16} color={THEME.colors.primary} />
-                <Text style={styles.secondaryBtnText}>Open in Mail App</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.sendEmailBtn}
+              onPress={handleDispatchEmail}
+              activeOpacity={0.8}
+              disabled={emailSending}
+            >
+              <Send size={14} color="#090D16" />
+              <Text style={styles.sendEmailBtnText}>
+                {emailSending ? 'Sending...' : 'Email Statement'}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {emailStatusMsg && (
+            <View style={styles.statusBanner}>
+              <Text style={styles.statusText}>{emailStatusMsg}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* 6. Drill-Down Transactions List for Selected Month */}
+        <View style={styles.transactionsSection}>
+          <View style={styles.txHeaderRow}>
+            <View style={styles.txHeaderLeft}>
+              <Receipt size={17} color="#EAB308" />
+              <Text style={styles.txSectionTitle}>
+                Month Transactions ({filteredTransactions.length})
+              </Text>
+            </View>
+            {selectedArchive && (
+              <TouchableOpacity
+                style={styles.fullArchiveLink}
+                onPress={() => setSelectedArchiveForModal(selectedArchive)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.fullArchiveLinkText}>Detailed Statement View →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {filteredTransactions.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                No transactions found for the selected month or category filter.
+              </Text>
+            </View>
+          ) : (
+            filteredTransactions.slice(0, 10).map((tx) => (
+              <ExpenseCard key={tx.id} transaction={tx} />
+            ))
+          )}
+
+          {filteredTransactions.length > 10 && (
+            <TouchableOpacity
+              style={styles.viewAllBtn}
+              onPress={() => {
+                if (isCurrentMonth) {
+                  navigation.navigate('ExpensesTab');
+                } else if (selectedArchive) {
+                  setSelectedArchiveForModal(selectedArchive);
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewAllBtnText}>
+                View all {filteredTransactions.length} transactions
+              </Text>
+              <ArrowRight size={14} color="#FACC15" />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
-      {/* Notifications Drawer */}
+      {/* Notifications Modal */}
       <NotificationsModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      {/* Full Statement Details Modal for Archived Month */}
+      <ClosedMonthDetailsModal
+        visible={!!selectedArchiveForModal}
+        record={selectedArchiveForModal}
+        onClose={() => setSelectedArchiveForModal(null)}
       />
     </SafeAreaView>
   );
@@ -492,155 +571,173 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.background,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: THEME.colors.surfaceSubtle,
-    marginHorizontal: THEME.spacing.lg,
-    marginVertical: THEME.spacing.md,
-    borderRadius: THEME.borderRadius.xl,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: THEME.borderRadius.lg,
-  },
-  tabBtnActive: {
-    backgroundColor: THEME.colors.surface,
-    ...THEME.shadows.card,
-  },
-  tabBtnText: {
-    fontSize: 12,
-    fontWeight: THEME.typography.weights.medium,
-    color: THEME.colors.textSecondary,
-    textAlign: 'center',
-  },
-  tabBtnTextActive: {
-    color: THEME.colors.textPrimary,
-    fontWeight: THEME.typography.weights.bold,
-  },
   scrollContent: {
     paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.sm,
     paddingBottom: 40,
   },
-  emailCard: {
-    backgroundColor: THEME.colors.surface,
-    borderRadius: THEME.borderRadius.xxl,
-    padding: THEME.spacing.lg,
-    marginBottom: THEME.spacing.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    ...THEME.shadows.card,
-  },
-  emailTopRow: {
+  desktopChartsRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: THEME.spacing.md,
+    gap: 14,
   },
-  emailIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: THEME.borderRadius.xl,
-    backgroundColor: THEME.colors.indigoLight,
+  mobileChartsCol: {
+    flexDirection: 'column',
+  },
+  chartColLeft: {
+    flex: 3,
+  },
+  chartColRight: {
+    flex: 2,
+  },
+  chartColFull: {
+    width: '100%',
+  },
+  exportBarCard: {
+    backgroundColor: '#111726',
+    borderRadius: THEME.borderRadius.xxl,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    marginBottom: THEME.spacing.md,
+    gap: 12,
+  },
+  exportBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mailIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emailTextCol: {
-    flex: 1,
+  exportBarTitle: {
+    fontSize: 14,
+    fontWeight: THEME.typography.weights.heavy,
+    color: '#F8FAFC',
   },
-  emailHeaderRow: {
+  exportBarSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  exportActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+  previewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: THEME.borderRadius.lg,
+    backgroundColor: '#090D16',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  previewBtnText: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.semibold,
+  },
+  sendEmailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: THEME.borderRadius.lg,
+    backgroundColor: '#EAB308', // Warm Gold
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sendEmailBtnText: {
+    color: '#090D16',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.heavy,
+  },
+  statusBanner: {
+    backgroundColor: 'rgba(234, 179, 8, 0.12)',
+    padding: 10,
+    borderRadius: THEME.borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+  },
+  statusText: {
+    color: '#FACC15',
+    fontSize: 11,
+    fontWeight: THEME.typography.weights.semibold,
+  },
+  transactionsSection: {
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  txHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 10,
+    flexWrap: 'wrap',
     gap: 8,
   },
-  resendBadge: {
-    backgroundColor: THEME.colors.primaryMuted,
+  txHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  txSectionTitle: {
+    fontSize: 15,
+    fontWeight: THEME.typography.weights.heavy,
+    color: '#F8FAFC',
+  },
+  fullArchiveLink: {
+    backgroundColor: 'rgba(234, 179, 8, 0.12)',
+    paddingVertical: 3,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: THEME.borderRadius.full,
-    borderWidth: 1,
-    borderColor: THEME.colors.primary,
+    borderRadius: 4,
   },
-  resendBadgeText: {
-    fontSize: 10,
+  fullArchiveLinkText: {
+    color: '#FACC15',
+    fontSize: 11,
     fontWeight: THEME.typography.weights.bold,
-    color: THEME.colors.primaryDark,
   },
-  emailTitle: {
-    fontSize: THEME.typography.sizes.md,
-    fontWeight: THEME.typography.weights.bold,
-    color: THEME.colors.textPrimary,
-  },
-  emailDesc: {
-    fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.textSecondary,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  successBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.colors.primaryMuted,
-    padding: 10,
+  emptyCard: {
+    backgroundColor: '#111726',
     borderRadius: THEME.borderRadius.lg,
-    gap: 8,
-    marginBottom: THEME.spacing.md,
-  },
-  successText: {
-    fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.primaryDark,
-    fontWeight: THEME.typography.weights.semibold,
-    flex: 1,
-  },
-  errorBanner: {
-    flexDirection: 'row',
+    padding: 24,
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    padding: 10,
-    borderRadius: THEME.borderRadius.lg,
-    gap: 8,
-    marginBottom: THEME.spacing.md,
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FCD34D',
+    borderColor: '#1E293B',
   },
-  errorText: {
-    fontSize: THEME.typography.sizes.xs,
-    color: '#92400E',
-    fontWeight: THEME.typography.weights.medium,
-    flex: 1,
-    lineHeight: 16,
+  emptyText: {
+    color: '#64748B',
+    fontSize: 12,
+    textAlign: 'center',
   },
-  actionButtonsCol: {
-    gap: 10,
-  },
-  secondaryActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  secondaryBtn: {
-    flex: 1,
+  viewAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: 'rgba(234, 179, 8, 0.1)',
     borderRadius: THEME.borderRadius.lg,
-    backgroundColor: THEME.colors.surfaceSubtle,
     borderWidth: 1,
-    borderColor: THEME.colors.border,
+    borderColor: 'rgba(234, 179, 8, 0.25)',
   },
-  secondaryBtnText: {
-    fontSize: THEME.typography.sizes.xs,
-    fontWeight: THEME.typography.weights.semibold,
-    color: THEME.colors.textPrimary,
+  viewAllBtnText: {
+    color: '#FACC15',
+    fontSize: 12,
+    fontWeight: THEME.typography.weights.heavy,
   },
 });
