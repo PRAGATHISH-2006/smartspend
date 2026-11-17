@@ -72,7 +72,13 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backHomeBtn}
-          onPress={() => navigation.navigate('Main' as any)}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Landing' as any);
+            }
+          }}
           activeOpacity={0.7}
         >
           <ArrowLeft size={16} color="#EAB308" />
