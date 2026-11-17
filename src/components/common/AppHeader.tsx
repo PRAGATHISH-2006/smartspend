@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Bell } from 'lucide-react-native';
+import { Bell, Menu } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { useNotification } from '../../context/NotificationContext';
+import { useSidebar } from '../../context/SidebarContext';
 
 interface AppHeaderProps {
   title?: string;
@@ -26,10 +27,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   showLeaderPhoto = true,
 }) => {
   const { unreadCount } = useNotification();
+  const { isDesktop, toggleMobileMenu } = useSidebar();
 
   return (
     <View style={styles.container}>
       <View style={styles.brandingRow}>
+        {!isDesktop && (
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={toggleMobileMenu}
+            activeOpacity={0.7}
+            accessibilityLabel="Open Navigation Sidebar"
+          >
+            <Menu size={20} color="#F8FAFC" />
+          </TouchableOpacity>
+        )}
         {showLeaderPhoto ? (
           <View style={styles.leaderAvatarWrapper}>
             <Image
@@ -90,6 +102,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: THEME.borderRadius.md,
+    backgroundColor: '#111726',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   leaderAvatarWrapper: {
     width: 40,

@@ -29,9 +29,9 @@ export const SafeToSpendCard: React.FC<SafeToSpendCardProps> = ({
         <View style={styles.titleRow}>
           <View style={[styles.shieldCircle, isNegative && styles.shieldCircleNegative]}>
             {isNegative ? (
-              <AlertTriangle size={18} color={THEME.colors.danger} />
+              <AlertTriangle size={18} color="#EF4444" />
             ) : (
-              <ShieldCheck size={18} color={THEME.colors.primary} />
+              <ShieldCheck size={18} color="#EAB308" />
             )}
           </View>
           <View>
@@ -41,7 +41,7 @@ export const SafeToSpendCard: React.FC<SafeToSpendCardProps> = ({
         </View>
 
         <View style={styles.daysPill}>
-          <Calendar size={12} color={THEME.colors.indigo} />
+          <Calendar size={12} color="#FACC15" />
           <Text style={styles.daysText}>{daysRemaining} {daysRemaining === 1 ? 'Day' : 'Days'} Left</Text>
         </View>
       </View>
@@ -77,18 +77,23 @@ export const SafeToSpendCard: React.FC<SafeToSpendCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: THEME.colors.surface,
+    backgroundColor: '#111726',
     borderRadius: THEME.borderRadius.xxl,
     padding: THEME.spacing.lg,
     marginHorizontal: THEME.spacing.lg,
     marginBottom: THEME.spacing.md,
     borderWidth: 1.5,
-    borderColor: THEME.colors.primaryBorder,
-    ...THEME.shadows.card,
+    borderColor: '#EAB308', // Warm Golden Yellow
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
   containerNegative: {
-    borderColor: THEME.colors.roseBorder,
-    backgroundColor: '#FFF5F5',
+    borderColor: '#DC2626',
+    backgroundColor: '#111726',
+    shadowColor: '#DC2626',
   },
   headerRow: {
     flexDirection: 'row',
@@ -105,54 +110,58 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: THEME.borderRadius.full,
-    backgroundColor: THEME.colors.primaryMuted,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   shieldCircleNegative: {
-    backgroundColor: THEME.colors.roseLight,
+    backgroundColor: 'rgba(220, 38, 38, 0.2)',
   },
   title: {
     fontSize: THEME.typography.sizes.md,
     fontWeight: THEME.typography.weights.bold,
-    color: THEME.colors.textPrimary,
+    color: '#F8FAFC',
   },
   subtitle: {
     fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.textSecondary,
+    color: '#94A3B8',
   },
   daysPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.colors.indigoLight,
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: THEME.borderRadius.full,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
   },
   daysText: {
     fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.indigo,
-    fontWeight: THEME.typography.weights.semibold,
+    color: '#FACC15',
+    fontWeight: THEME.typography.weights.bold,
   },
   safeAmount: {
     fontSize: THEME.typography.sizes.display,
     fontWeight: THEME.typography.weights.heavy,
-    color: THEME.colors.primaryDark,
+    color: '#FACC15',
     letterSpacing: -0.5,
     marginVertical: THEME.spacing.xs,
   },
   safeAmountNegative: {
-    color: THEME.colors.danger,
+    color: '#EF4444',
   },
   gridRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: THEME.colors.surfaceSubtle,
+    backgroundColor: '#070A12',
     borderRadius: THEME.borderRadius.lg,
     paddingVertical: THEME.spacing.sm,
     paddingHorizontal: THEME.spacing.md,
     marginTop: THEME.spacing.xs,
+    borderWidth: 1,
+    borderColor: '#1E293B',
   },
   gridCol: {
     flex: 1,

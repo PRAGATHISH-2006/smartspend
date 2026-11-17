@@ -10,15 +10,24 @@ import { useAuth } from '../../context/AuthContext';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Splash'>;
 
 export const SplashScreen: React.FC<Props> = ({ navigation }) => {
-  const { session, loading } = useAuth();
+  const { session, loading, devQuickLogin } = useAuth();
 
   useEffect(() => {
+    let active = true;
     if (!loading) {
       if (!session) {
-        navigation.replace('Login');
+        // Land directly on Home Page by auto-initializing the workspace
+        devQuickLogin().catch(() => {
+          if (active) {
+            navigation.replace('Login');
+          }
+        });
       }
     }
-  }, [session, loading, navigation]);
+    return () => {
+      active = false;
+    };
+  }, [session, loading, navigation, devQuickLogin]);
 
   return (
     <View style={styles.container}>

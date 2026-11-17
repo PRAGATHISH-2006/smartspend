@@ -1,102 +1,83 @@
-// MainTabNavigator: Bottom navigation with 5 tabs (Home, Expenses, Fixed, Reports, Settings)
+// MainTabNavigator: Responsive Sidebar Navigation with Yellow & Red theme and Previous Details tab
 
-import React from 'react';
-import { StyleSheet, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, Receipt, Repeat, BarChart3, Settings } from 'lucide-react-native';
 import { THEME } from '../constants/theme';
 import { MainTabParamList } from '../types/navigation';
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { ExpensesScreen } from '../screens/main/ExpensesScreen';
 import { FixedExpensesScreen } from '../screens/main/FixedExpensesScreen';
 import { ReportsScreen } from '../screens/main/ReportsScreen';
+import { PreviousDetailsScreen } from '../screens/main/PreviousDetailsScreen';
 import { SettingsScreen } from '../screens/main/SettingsScreen';
+import { Sidebar } from '../components/navigation/Sidebar';
+import { SidebarProvider } from '../context/SidebarContext';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+const MainTabContent: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<string>('HomeTab');
+  const navRef = useRef<any>(null);
+
+  return (
+    <View style={styles.layoutContainer}>
+      {/* Sidebar Navigation */}
+      <Sidebar
+        currentTab={activeTab}
+        onSelectTab={(tabName) => {
+          if (navRef.current) {
+            navRef.current.navigate(tabName);
+          }
+        }}
+      />
+
+      {/* Screen Area */}
+      <View style={styles.mainScreenContainer}>
+        <Tab.Navigator
+          initialRouteName="HomeTab"
+          screenListeners={({ route, navigation }) => {
+            navRef.current = navigation;
+            return {
+              focus: () => {
+                setActiveTab(route.name);
+              },
+            };
+          }}
+          screenOptions={{
+            headerShown: false,
+            tabBarStyle: { display: 'none' }, // Replaced by Sidebar Navigation
+          }}
+        >
+          <Tab.Screen name="HomeTab" component={HomeScreen} />
+          <Tab.Screen name="ExpensesTab" component={ExpensesScreen} />
+          <Tab.Screen name="FixedTab" component={FixedExpensesScreen} />
+          <Tab.Screen name="ReportsTab" component={ReportsScreen} />
+          <Tab.Screen name="PreviousDetailsTab" component={PreviousDetailsScreen} />
+          <Tab.Screen name="SettingsTab" component={SettingsScreen} />
+        </Tab.Navigator>
+      </View>
+    </View>
+  );
+};
+
 export const MainTabNavigator: React.FC = () => {
   return (
-    <Tab.Navigator
-      initialRouteName="HomeTab"
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: THEME.colors.primary,
-        tabBarInactiveTintColor: THEME.colors.textMuted,
-        tabBarStyle: styles.tabBar,
-        tabBarItemStyle: styles.tabBarItem,
-        tabBarLabelStyle: styles.tabBarLabel,
-        tabBarHideOnKeyboard: true,
-      }}
-    >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeScreen}
-        options={{
-          title: 'வெற்றி நிதி மேலாண்மை',
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color }) => <Home size={20} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ExpensesTab"
-        component={ExpensesScreen}
-        options={{
-          title: 'வெற்றி நிதி மேலாண்மை',
-          tabBarLabel: 'Expenses',
-          tabBarIcon: ({ color }) => <Receipt size={20} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="FixedTab"
-        component={FixedExpensesScreen}
-        options={{
-          title: 'வெற்றி நிதி மேலாண்மை',
-          tabBarLabel: 'Fixed',
-          tabBarIcon: ({ color }) => <Repeat size={20} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ReportsTab"
-        component={ReportsScreen}
-        options={{
-          title: 'வெற்றி நிதி மேலாண்மை',
-          tabBarLabel: 'Reports',
-          tabBarIcon: ({ color }) => <BarChart3 size={20} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="SettingsTab"
-        component={SettingsScreen}
-        options={{
-          title: 'வெற்றி நிதி மேலாண்மை',
-          tabBarLabel: 'Settings',
-          tabBarIcon: ({ color }) => <Settings size={20} color={color} />,
-        }}
-      />
-    </Tab.Navigator>
+    <SidebarProvider>
+      <MainTabContent />
+    </SidebarProvider>
   );
 };
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: THEME.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.border,
-    height: Platform.OS === 'ios' ? 88 : 76,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    ...THEME.shadows.card,
+  layoutContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: THEME.colors.background,
   },
-  tabBarItem: {
-    paddingVertical: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: THEME.typography.weights.semibold,
-    lineHeight: 14,
-    marginTop: 2,
-    marginBottom: 0,
+  mainScreenContainer: {
+    flex: 1,
+    height: '100%',
+    backgroundColor: THEME.colors.background,
   },
 });

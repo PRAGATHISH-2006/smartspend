@@ -46,7 +46,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <View style={styles.statIconCircleAdded}>
-            <ArrowUpRight size={14} color={THEME.colors.primaryLight} />
+            <ArrowUpRight size={14} color="#FACC15" />
           </View>
           <View>
             <Text style={styles.statLabel}>Total Added</Text>
@@ -56,7 +56,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 
         <View style={styles.statItem}>
           <View style={styles.statIconCircleSpent}>
-            <ArrowDownLeft size={14} color={THEME.colors.rose} />
+            <ArrowDownLeft size={14} color="#EF4444" />
           </View>
           <View>
             <Text style={styles.statLabel}>Total Spent</Text>
@@ -70,15 +70,19 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 
 const styles = StyleSheet.create({
   cardContainer: {
-    backgroundColor: THEME.colors.surfaceDark,
+    backgroundColor: '#111726',
     borderRadius: THEME.borderRadius.xxl,
     padding: THEME.spacing.xl,
     marginHorizontal: THEME.spacing.lg,
     marginTop: THEME.spacing.sm,
     marginBottom: THEME.spacing.md,
-    borderWidth: 1,
-    borderColor: THEME.colors.borderDark,
-    ...THEME.shadows.elevated,
+    borderWidth: 1.5,
+    borderColor: '#DC2626', // Vibrant Red Accent
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 5,
   },
   topRow: {
     flexDirection: 'row',
@@ -95,31 +99,34 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: THEME.borderRadius.full,
-    backgroundColor: THEME.colors.primary,
+    backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
     fontSize: THEME.typography.sizes.sm,
-    color: THEME.colors.textMuted,
+    color: '#CBD5E1',
     fontWeight: THEME.typography.weights.medium,
     letterSpacing: 0.2,
   },
   addMoneyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    backgroundColor: '#EAB308', // Warm Gold button
+    paddingVertical: 7,
+    paddingHorizontal: 14,
     borderRadius: THEME.borderRadius.full,
     gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addMoneyText: {
-    color: '#FFFFFF',
+    color: '#090D16',
     fontSize: THEME.typography.sizes.xs,
-    fontWeight: THEME.typography.weights.semibold,
+    fontWeight: THEME.typography.weights.bold,
   },
   balanceAmount: {
     fontSize: THEME.typography.sizes.hero,
@@ -148,7 +155,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: THEME.borderRadius.full,
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(234, 179, 8, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -156,25 +163,25 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: THEME.borderRadius.full,
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(220, 38, 38, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   statLabel: {
     fontSize: THEME.typography.sizes.xs,
-    color: THEME.colors.textMuted,
+    color: '#94A3B8',
     fontWeight: THEME.typography.weights.regular,
   },
   statValueAdded: {
     fontSize: THEME.typography.sizes.sm,
     fontWeight: THEME.typography.weights.bold,
-    color: THEME.colors.primaryLight,
+    color: '#FACC15',
     marginTop: 2,
   },
   statValueSpent: {
     fontSize: THEME.typography.sizes.sm,
     fontWeight: THEME.typography.weights.bold,
-    color: THEME.colors.rose,
+    color: '#EF4444',
     marginTop: 2,
   },
 });

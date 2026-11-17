@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { ArrowRight, History } from 'lucide-react-native';
+import { ArrowRight, History, FolderArchive, Sparkles } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -84,9 +84,10 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader
-        title={`${getGreeting()}, ${firstName} 👋`}
-        subtitle="Here is your spending overview"
+        title="வெற்றி நிதி மேலாண்மை"
+        subtitle={`${getGreeting()}, ${firstName}! உங்கள் நிதி மேலோட்டம்`}
         showBrandLogo={true}
+        showLeaderPhoto={true}
         onNotificationPress={() => setShowNotifications(true)}
       />
 
@@ -97,8 +98,8 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refreshData}
-            tintColor={THEME.colors.primary}
-            colors={[THEME.colors.primary]}
+            tintColor="#DC2626"
+            colors={['#DC2626', '#EAB308']}
           />
         }
       >
@@ -107,6 +108,37 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Leader Inspiration Banner */}
         <LeaderInspirationBanner />
+
+        {/* Quick Month Management Hub: Close Month & Previous Details */}
+        <View style={styles.monthHubContainer}>
+          <TouchableOpacity
+            style={styles.closeMonthHubBtn}
+            onPress={() => setShowCloseMonth(true)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.hubBtnIconRed}>
+              <Sparkles size={16} color="#FFFFFF" />
+            </View>
+            <View style={styles.hubBtnTextCol}>
+              <Text style={styles.hubBtnTitleRed}>Close Month</Text>
+              <Text style={styles.hubBtnSubtitle}>Reset active & rollover</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.previousDetailsHubBtn}
+            onPress={() => navigation.navigate('PreviousDetailsTab')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.hubBtnIconYellow}>
+              <FolderArchive size={16} color="#090D16" />
+            </View>
+            <View style={styles.hubBtnTextCol}>
+              <Text style={styles.hubBtnTitleYellow}>Previous Details</Text>
+              <Text style={styles.hubBtnSubtitle}>Archived statements</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* 1. Hero Balance Card */}
         <BalanceCard
@@ -313,5 +345,77 @@ const styles = StyleSheet.create({
     fontSize: THEME.typography.sizes.sm,
     color: THEME.colors.textMuted,
     fontStyle: 'italic',
+  },
+  monthHubContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: THEME.spacing.lg,
+    marginBottom: THEME.spacing.md,
+  },
+  closeMonthHubBtn: {
+    flex: 1,
+    backgroundColor: '#111726',
+    borderRadius: THEME.borderRadius.lg,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#DC2626', // Vibrant Red Accent
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  previousDetailsHubBtn: {
+    flex: 1,
+    backgroundColor: '#111726',
+    borderRadius: THEME.borderRadius.lg,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#EAB308', // Warm Gold Accent
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#EAB308',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  hubBtnIconRed: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubBtnIconYellow: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EAB308',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubBtnTextCol: {
+    flex: 1,
+  },
+  hubBtnTitleRed: {
+    fontSize: 13,
+    fontWeight: THEME.typography.weights.heavy,
+    color: '#F87171',
+  },
+  hubBtnTitleYellow: {
+    fontSize: 13,
+    fontWeight: THEME.typography.weights.heavy,
+    color: '#FACC15',
+  },
+  hubBtnSubtitle: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
   },
 });

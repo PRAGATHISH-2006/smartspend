@@ -13,6 +13,7 @@ export type MainTabParamList = {
   ExpensesTab: undefined;
   FixedTab: undefined;
   ReportsTab: undefined;
+  PreviousDetailsTab: undefined;
   SettingsTab: undefined;
 };
 

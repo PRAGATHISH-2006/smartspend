@@ -1,16 +1,28 @@
 // SmartSpend Theme & Design System
-// Mobile-first, modern financial aesthetic with rich emerald accents and dark slate tones.
+// Striking modern aesthetic with Vibrant Red accents and Warm Golden Yellow highlights on a sleek dark surface.
 
 export const THEME = {
   colors: {
-    // Primary brand: Emerald & Forest
-    primary: '#059669',
-    primaryDark: '#047857',
-    primaryLight: '#10B981',
-    primaryMuted: '#ECFDF5',
-    primaryBorder: '#A7F3D0',
+    // Primary Brand: Vibrant Red (#DC2626)
+    primary: '#DC2626',
+    primaryDark: '#B91C1C',
+    primaryLight: '#EF4444',
+    primaryMuted: 'rgba(220, 38, 38, 0.12)',
+    primaryBorder: 'rgba(220, 38, 38, 0.35)',
 
-    // Secondary & Accents
+    // Warm Golden Yellow Brand Accent (#EAB308 / #FACC15)
+    accentYellow: '#EAB308',
+    accentYellowLight: '#FEF08A',
+    accentYellowDark: '#CA8A04',
+    accentYellowMuted: 'rgba(234, 179, 8, 0.12)',
+    accentYellowBorder: 'rgba(234, 179, 8, 0.35)',
+
+    brandRed: '#DC2626',
+    brandYellow: '#EAB308',
+    brandDark: '#090D16',
+    brandCardDark: '#111726',
+
+    // Secondary & Status
     indigo: '#6366F1',
     indigoLight: '#EEF2FF',
     indigoBorder: '#C7D2FE',
@@ -19,39 +31,42 @@ export const THEME = {
     amberLight: '#FFFBEB',
     amberBorder: '#FDE68A',
 
-    rose: '#EF4444',
-    roseDark: '#DC2626',
+    rose: '#DC2626',
+    roseDark: '#991B1B',
     roseLight: '#FEF2F2',
     roseBorder: '#FECACA',
 
     cyan: '#06B6D4',
     purple: '#8B5CF6',
 
-    // Neutrals / Surfaces
-    background: '#F8FAFC',
-    surface: '#FFFFFF',
-    surfaceElevated: '#FFFFFF',
-    surfaceSubtle: '#F1F5F9',
-    surfaceDark: '#0F172A',
-    surfaceDarkCard: '#1E293B',
+    // Neutrals / Surfaces (Sleek dark theme that makes Red & Yellow pop brilliantly)
+    background: '#090D16',
+    backgroundLight: '#F8FAFC',
+    surface: '#111726',
+    surfaceElevated: '#182136',
+    surfaceSubtle: '#1C2740',
+    surfaceDark: '#060910',
+    surfaceDarkCard: '#111726',
 
     // Text colors
-    textPrimary: '#0F172A',
-    textSecondary: '#475569',
+    textPrimary: '#F8FAFC',
+    textSecondary: '#CBD5E1',
     textMuted: '#94A3B8',
-    textInverse: '#FFFFFF',
+    textInverse: '#090D16',
     textPrimaryDark: '#F8FAFC',
 
     // Status colors
     success: '#10B981',
-    warning: '#F59E0B',
+    warning: '#EAB308',
     danger: '#EF4444',
     info: '#3B82F6',
 
     // Borders & Dividers
-    border: '#E2E8F0',
-    borderLight: '#F1F5F9',
-    borderDark: '#334155',
+    border: '#1E293B',
+    borderLight: '#334155',
+    borderDark: '#0A0F1D',
+    borderGold: '#EAB308',
+    borderRed: '#DC2626',
   },
 
   typography: {
@@ -104,39 +119,53 @@ export const THEME = {
 
   shadows: {
     subtle: {
-      shadowColor: '#0F172A',
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
+      shadowOpacity: 0.15,
       shadowRadius: 6,
       elevation: 2,
     },
     card: {
-      shadowColor: '#0F172A',
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.25,
       shadowRadius: 10,
       elevation: 3,
     },
     elevated: {
-      shadowColor: '#0F172A',
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.1,
+      shadowOpacity: 0.35,
       shadowRadius: 16,
       elevation: 6,
     },
     glowGreen: {
-      shadowColor: '#059669',
+      shadowColor: '#10B981',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
+      shadowOpacity: 0.3,
       shadowRadius: 12,
       elevation: 6,
     },
     glowAmber: {
-      shadowColor: '#F59E0B',
+      shadowColor: '#EAB308',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
+      shadowOpacity: 0.35,
       shadowRadius: 12,
       elevation: 6,
+    },
+    glowRed: {
+      shadowColor: '#DC2626',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
+      elevation: 7,
+    },
+    glowYellow: {
+      shadowColor: '#EAB308',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
+      elevation: 7,
     },
   },
 };

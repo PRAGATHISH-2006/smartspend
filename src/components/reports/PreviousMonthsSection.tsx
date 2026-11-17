@@ -379,12 +379,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statBoxAdded: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   statBoxWithdrawn: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
   },
   statLabelRow: {
     flexDirection: 'row',

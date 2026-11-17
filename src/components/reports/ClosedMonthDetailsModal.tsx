@@ -404,12 +404,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   addedCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   withdrawnCard: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: 'rgba(220, 38, 38, 0.12)',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: THEME.colors.surface,
     padding: THEME.spacing.md,
     borderRadius: THEME.borderRadius.lg,
     borderWidth: 1,
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   netBalanceAmount: {
     fontSize: THEME.typography.sizes.lg,
     fontWeight: '800',
-    color: THEME.colors.textPrimary,
+    color: '#EAB308',
     marginTop: 2,
   },
   netBalanceRight: {
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   netBalanceSub: {
     fontSize: THEME.typography.sizes.xs,
     fontWeight: '700',
-    color: THEME.colors.primaryDark,
+    color: THEME.colors.primary,
   },
   closedAtText: {
     fontSize: 11,
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   categorySection: {
-    backgroundColor: '#FFF',
+    backgroundColor: THEME.colors.surface,
     padding: THEME.spacing.md,
     borderRadius: THEME.borderRadius.lg,
     borderWidth: 1,
@@ -527,8 +527,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
     borderWidth: 1,
     padding: THEME.spacing.md,
     borderRadius: THEME.borderRadius.lg,
@@ -543,11 +543,11 @@ const styles = StyleSheet.create({
   driveBannerTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1E40AF',
+    color: '#60A5FA',
   },
   driveBannerSub: {
     fontSize: 11,
-    color: '#3B82F6',
+    color: '#93C5FD',
   },
   transactionsHeaderSection: {
     marginTop: THEME.spacing.sm,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     marginBottom: THEME.spacing.xs,
   },
   countBadge: {
-    backgroundColor: THEME.colors.primaryMuted,
+    backgroundColor: 'rgba(220, 38, 38, 0.18)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   countBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: THEME.colors.primaryDark,
+    color: '#FACC15',
   },
   filterTabsRow: {
     flexDirection: 'row',
@@ -585,12 +585,12 @@ const styles = StyleSheet.create({
     borderRadius: THEME.borderRadius.sm,
   },
   filterTabBtnActive: {
-    backgroundColor: '#FFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
+    backgroundColor: THEME.colors.primary,
+    shadowColor: '#DC2626',
+    shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 1 },
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   filterTabBtnText: {
     fontSize: 12,
@@ -598,13 +598,13 @@ const styles = StyleSheet.create({
     color: THEME.colors.textSecondary,
   },
   filterTabBtnTextActive: {
-    color: THEME.colors.primary,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: THEME.colors.surface,
     borderWidth: 1,
     borderColor: THEME.colors.border,
     borderRadius: THEME.borderRadius.md,
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
-    backgroundColor: '#FFF',
+    backgroundColor: THEME.colors.surface,
     borderRadius: THEME.borderRadius.lg,
     borderWidth: 1,
     borderColor: THEME.colors.border,
