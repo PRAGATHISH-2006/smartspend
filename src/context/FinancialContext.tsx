@@ -195,14 +195,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           missingRules.push(rule);
         }
       } else if (rule.frequency === 'monthly') {
-        // Monthly: Prompt once per calendar month / billing cycle
+        // Monthly: Prompt on its scheduled due date of the month
+        const ruleStartDate = parseISO(rule.start_date);
+        const targetDayOfMonth = getDate(ruleStartDate);
+        const currentDayOfMonth = today.getDate();
+        const isDueDate = currentDayOfMonth === targetDayOfMonth;
+
         const hasThisMonth = activeCycleOccurrences.some((o) => {
           if (o.fixed_expense_id !== rule.id) return false;
           const occDate = parseISO(o.occurrence_date);
           return occDate.getFullYear() === currentYear && occDate.getMonth() === currentMonth;
         });
 
-        if (!hasThisMonth) {
+        if (isDueDate && !hasThisMonth) {
           missingRules.push(rule);
         }
       } else if (rule.frequency === 'yearly') {
@@ -1093,10 +1098,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         custom_end_date: newEndDateStr,
       });
 
-      // 5. Generate fresh pending occurrences for all active recurring expenses in the new cycle
+      // 5. Generate fresh pending occurrences only for rules actually due today in the new cycle
       const activeRules = fixedExpenses.filter((r) => r.active);
-      if (activeRules.length > 0) {
-        for (const rule of activeRules) {
+      const scheduledTodayRules = activeRules.filter((rule) => {
+        if (rule.frequency === 'daily') return true;
+        if (rule.frequency === 'weekly') {
+          return today.getDay() === parseISO(rule.start_date).getDay();
+        }
+        if (rule.frequency === 'monthly') {
+          return today.getDate() === getDate(parseISO(rule.start_date));
+        }
+        return false;
+      });
+
+      if (scheduledTodayRules.length > 0) {
+        for (const rule of scheduledTodayRules) {
           await supabase
             .from('fixed_expense_occurrences')
             .upsert(

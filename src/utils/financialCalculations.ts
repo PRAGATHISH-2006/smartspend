@@ -383,14 +383,21 @@ export function evaluateFinancialSummary(params: {
     customEndDate
   );
 
-  const safeToSpend = calculateSafeToSpend(balanceResults.currentBalance, totalUpcoming);
-  const safeDailySpending = calculateSafeDailySpending(safeToSpend, daysRemaining);
+  // Fresh cycle check: When the month is closed or starting fresh before funds are deposited,
+  // the user has 0 balance and 0 money added. Safe to Spend should be cleanly restarted to 0
+  // (not an alarming negative deficit against upcoming commitments).
+  const isFreshCycleNoFunds = balanceResults.totalMoneyAdded === 0 && balanceResults.currentBalance <= 0;
 
-  const isLowBalance = balanceResults.currentBalance <= lowBalanceThreshold;
+  const rawSafeToSpend = calculateSafeToSpend(balanceResults.currentBalance, totalUpcoming);
+  const safeToSpend = isFreshCycleNoFunds ? 0 : rawSafeToSpend;
+  const safeDailySpending = isFreshCycleNoFunds ? 0 : calculateSafeDailySpending(safeToSpend, daysRemaining);
+
+  const isLowBalance = !isFreshCycleNoFunds && balanceResults.currentBalance <= lowBalanceThreshold;
   const isFixedExpenseWarning =
+    !isFreshCycleNoFunds &&
     totalUpcoming > 0 &&
     (totalUpcoming > balanceResults.currentBalance * 0.7 || safeToSpend <= 0);
-  const isSafeToSpendNegative = safeToSpend < 0;
+  const isSafeToSpendNegative = !isFreshCycleNoFunds && safeToSpend < 0;
   const isFiveDaysRemaining = daysRemaining === 5;
 
   return {

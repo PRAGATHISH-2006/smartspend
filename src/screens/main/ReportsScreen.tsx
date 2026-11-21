@@ -382,51 +382,7 @@ export const ReportsScreen: React.FC<Props> = ({ navigation }) => {
           onSelectMonth={(id) => setSelectedMonthId(id)}
         />
 
-        {/* 5. Statement Export & Email Audit Dispatcher */}
-        <View style={styles.exportBarCard}>
-          <View style={styles.exportBarLeft}>
-            <View style={styles.mailIconCircle}>
-              <Mail size={18} color="#EAB308" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.exportBarTitle}>Monthly Statement & Audit Dispatcher</Text>
-              <Text style={styles.exportBarSub}>
-                Send complete monthly financial statement to {registeredEmail || 'your email'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.exportActionRow}>
-            <TouchableOpacity
-              style={styles.previewBtn}
-              onPress={handlePreviewReport}
-              activeOpacity={0.8}
-            >
-              <Eye size={14} color="#CBD5E1" />
-              <Text style={styles.previewBtnText}>Preview HTML</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.sendEmailBtn}
-              onPress={handleDispatchEmail}
-              activeOpacity={0.8}
-              disabled={emailSending}
-            >
-              <Send size={14} color="#090D16" />
-              <Text style={styles.sendEmailBtnText}>
-                {emailSending ? 'Sending...' : 'Email Statement'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {emailStatusMsg && (
-            <View style={styles.statusBanner}>
-              <Text style={styles.statusText}>{emailStatusMsg}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* 6. Drill-Down Transactions List for Selected Month */}
+        {/* 5. Drill-Down Transactions List for Selected Month */}
         <View style={styles.transactionsSection}>
           <View style={styles.txHeaderRow}>
             <View style={styles.txHeaderLeft}>
@@ -520,90 +476,6 @@ const styles = StyleSheet.create({
   },
   chartColFull: {
     width: '100%',
-  },
-  exportBarCard: {
-    backgroundColor: '#111726',
-    borderRadius: THEME.borderRadius.xxl,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: '#1E293B',
-    marginBottom: THEME.spacing.md,
-    gap: 12,
-  },
-  exportBarLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  mailIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(234, 179, 8, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exportBarTitle: {
-    fontSize: 14,
-    fontWeight: THEME.typography.weights.heavy,
-    color: '#F8FAFC',
-  },
-  exportBarSub: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  exportActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'flex-end',
-  },
-  previewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: THEME.borderRadius.lg,
-    backgroundColor: '#090D16',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  previewBtnText: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    fontWeight: THEME.typography.weights.semibold,
-  },
-  sendEmailBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: THEME.borderRadius.lg,
-    backgroundColor: '#EAB308', // Warm Gold
-    shadowColor: '#EAB308',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sendEmailBtnText: {
-    color: '#090D16',
-    fontSize: 12,
-    fontWeight: THEME.typography.weights.heavy,
-  },
-  statusBanner: {
-    backgroundColor: 'rgba(234, 179, 8, 0.12)',
-    padding: 10,
-    borderRadius: THEME.borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(234, 179, 8, 0.3)',
-  },
-  statusText: {
-    color: '#FACC15',
-    fontSize: 11,
-    fontWeight: THEME.typography.weights.semibold,
   },
   transactionsSection: {
     marginTop: 6,

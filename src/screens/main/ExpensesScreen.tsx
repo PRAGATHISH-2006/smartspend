@@ -153,11 +153,6 @@ export const ExpensesScreen: React.FC<Props> = () => {
         onSubmit={addMoney}
       />
 
-      <GenerateReportModal
-        visible={showGenerateReport}
-        onClose={() => setShowGenerateReport(false)}
-      />
-
       <NotificationsModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
@@ -192,50 +187,6 @@ const styles = StyleSheet.create({
   },
   headerExpenseBtn: {
     backgroundColor: THEME.colors.primary,
-  },
-  reportBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: THEME.colors.surface,
-    marginHorizontal: THEME.spacing.lg,
-    marginBottom: THEME.spacing.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: THEME.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: THEME.colors.border,
-    ...THEME.shadows.subtle,
-  },
-  reportBarLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  reportBarTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: THEME.colors.textPrimary,
-  },
-  reportBarSub: {
-    fontSize: 10,
-    color: THEME.colors.textMuted,
-    marginTop: 1,
-  },
-  generateReportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME.colors.primary,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: THEME.borderRadius.full,
-    gap: 6,
-  },
-  generateReportBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFF',
   },
   listContent: {
     paddingHorizontal: THEME.spacing.lg,

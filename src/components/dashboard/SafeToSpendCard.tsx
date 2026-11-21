@@ -36,7 +36,11 @@ export const SafeToSpendCard: React.FC<SafeToSpendCardProps> = ({
           </View>
           <View>
             <Text style={styles.title}>Safe to Spend</Text>
-            <Text style={styles.subtitle}>After reserved fixed commitments</Text>
+            <Text style={styles.subtitle}>
+              {safeToSpend === 0 && !isNegative
+                ? 'Add funds to activate daily allowance'
+                : 'After reserved fixed commitments'}
+            </Text>
           </View>
         </View>
 
