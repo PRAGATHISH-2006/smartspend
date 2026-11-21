@@ -1,4 +1,4 @@
-// SettingsScreen: Configuration for Budget Period, Low Balance Alerts, Notifications, and Demo Data
+// SettingsScreen: Configuration for Budget Period, Low Balance Alerts, and Notifications
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,19 +14,11 @@ import {
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import {
-  User,
   Sliders,
   Bell,
   Sparkles,
-  RotateCcw,
   LogOut,
-  ChevronRight,
-  Shield,
-  HelpCircle,
   Calendar,
-  Mail,
-  Send,
-  CheckCircle,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
@@ -40,8 +32,6 @@ import { CalendarPicker } from '../../components/common/CalendarPicker';
 import { PWAInstallBanner } from '../../components/common/PWAInstallBanner';
 import { ConfirmationDialog } from '../../components/common/ConfirmationDialog';
 import { NotificationsModal } from '../modals/NotificationsModal';
-import { formatINR } from '../../utils/currency';
-import { triggerWeeklyReportEmail } from '../../services/emailReportService';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'SettingsTab'>;
 
@@ -51,16 +41,8 @@ export const SettingsScreen: React.FC<Props> = () => {
     summary,
     budgetSettings,
     updateBudgetSettings,
-    loadDemoData,
-    resetUserData,
-    sendFixedRemindersEmail,
-    sendLowBalanceEmailAlertNow,
-    sendCycleEndingEmailAlertNow,
   } = useFinancial();
   const { settings, updateSettings } = useNotification();
-
-  const [emailTestLoading, setEmailTestLoading] = useState<string | null>(null);
-  const [emailTestResult, setEmailTestResult] = useState<string | null>(null);
 
   const [thresholdStr, setThresholdStr] = useState<string>(
     String(budgetSettings?.low_balance_threshold ?? 2000)
@@ -79,13 +61,9 @@ export const SettingsScreen: React.FC<Props> = () => {
   );
   const [activeCalendarPicker, setActiveCalendarPicker] = useState<'start' | 'end' | null>(null);
 
-  const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
-  const [showDemoConfirm, setShowDemoConfirm] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
-  const [demoLoading, setDemoLoading] = useState<boolean>(false);
-  const [resetLoading, setResetLoading] = useState<boolean>(false);
   const [savingBudget, setSavingBudget] = useState<boolean>(false);
 
   useEffect(() => {
@@ -125,43 +103,6 @@ export const SettingsScreen: React.FC<Props> = () => {
       Alert.alert('Error', err.message || 'Failed to update settings');
     } finally {
       setSavingBudget(false);
-    }
-  };
-
-  const handleLoadDemo = async () => {
-    setDemoLoading(true);
-    try {
-      const res = await loadDemoData();
-      if (res.success) {
-        setShowDemoConfirm(false);
-        Alert.alert(
-          'Demo Dataset Loaded! 🎉',
-          'Added ₹10,000 to wallet, Milk ₹60/day, Bus ₹40/day, Netflix ₹199/month, Lunch ₹200, Shopping ₹500.'
-        );
-      } else {
-        Alert.alert('Notice', res.error || 'Demo data loaded.');
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load demo data');
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
-  const handleResetData = async () => {
-    setResetLoading(true);
-    try {
-      const res = await resetUserData();
-      if (res.success) {
-        setShowResetConfirm(false);
-        Alert.alert('Data Cleared', 'All your test transactions and recurring rules have been reset.');
-      } else {
-        Alert.alert('Notice', res.error || 'Data reset completed.');
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to reset data');
-    } finally {
-      setResetLoading(false);
     }
   };
 
@@ -444,7 +385,7 @@ export const SettingsScreen: React.FC<Props> = () => {
             />
           </View>
 
-          <View style={styles.switchRow}>
+          <View style={[styles.switchRow, { borderBottomWidth: 0 }]}>
             <View style={styles.switchTextCol}>
               <Text style={styles.switchTitle}>5-Day Remaining Alert</Text>
               <Text style={styles.switchDesc}>Alert when 5 days remain in budget cycle</Text>
@@ -456,303 +397,10 @@ export const SettingsScreen: React.FC<Props> = () => {
               thumbColor={THEME.colors.primary}
             />
           </View>
-
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextCol}>
-              <Text style={styles.switchTitle}>Weekly Email Reports</Text>
-              <Text style={styles.switchDesc}>Send weekly Resend summary emails</Text>
-            </View>
-            <Switch
-              value={settings?.weekly_report_enabled ?? true}
-              onValueChange={(val) => updateSettings({ weekly_report_enabled: val })}
-              trackColor={{ false: THEME.colors.border, true: THEME.colors.primaryBorder }}
-              thumbColor={THEME.colors.primary}
-            />
-          </View>
-
-          {/* Live Email Diagnostic & Test Center */}
-          <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: THEME.colors.border }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Mail size={16} color={THEME.colors.primary} style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: THEME.colors.textPrimary }}>
-                Instant Email Verification & Diagnostics
-              </Text>
-            </View>
-            <Text style={{ fontSize: 12, color: THEME.colors.textSecondary, marginBottom: 12 }}>
-              Trigger and verify any alert directly to <Text style={{ fontWeight: '700', color: THEME.colors.textPrimary }}>{user?.email || 'selvanpragathish@gmail.com'}</Text>:
-            </Text>
-
-            {emailTestResult ? (
-              <View style={{ backgroundColor: '#ecfdf5', padding: 10, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#a7f3d0' }}>
-                <Text style={{ fontSize: 12, color: '#065f46', fontWeight: '600' }}>
-                  {emailTestResult}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {/* 8:00 AM Morning Reminder */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('morning');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendFixedRemindersEmail('morning');
-                    setEmailTestResult(res.message || '8:00 AM Morning Reminder sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#f0fdf4',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#86efac',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#15803d" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#15803d' }}>
-                  {emailTestLoading === 'morning' ? 'Sending...' : '⏰ 8:00 AM Morning Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* 6:00 PM Evening Check-In */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('evening');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendFixedRemindersEmail('evening');
-                    setEmailTestResult(res.message || '6:00 PM Evening Check-in sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#f8fafc',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#cbd5e1',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#334155" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>
-                  {emailTestLoading === 'evening' ? 'Sending...' : '🌙 6:00 PM Evening Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Mid-Week Day 3 Alert */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('mid_week');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendFixedRemindersEmail('mid_week');
-                    setEmailTestResult(res.message || 'Mid-Week reminder sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#eff6ff',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#93c5fd',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#1d4ed8" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#1d4ed8' }}>
-                  {emailTestLoading === 'mid_week' ? 'Sending...' : '📅 Mid-Week (Day 3) Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Month-End 2 Days Alert */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('month_end');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendFixedRemindersEmail('month_end');
-                    setEmailTestResult(res.message || 'Month-End reminder sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#fdf2f8',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#f472b6',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#be185d" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#be185d' }}>
-                  {emailTestLoading === 'month_end' ? 'Sending...' : '🚨 Month-End (2-Day) Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Low Balance Alert */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('low_balance');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendLowBalanceEmailAlertNow();
-                    setEmailTestResult(res.message || 'Low balance alert sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#fef2f2',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#fca5a5',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#dc2626" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#dc2626' }}>
-                  {emailTestLoading === 'low_balance' ? 'Sending...' : '⚠️ Low Balance Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* 5-Day Remaining Cycle Alert */}
-              <TouchableOpacity
-                onPress={async () => {
-                  setEmailTestLoading('5day');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await sendCycleEndingEmailAlertNow();
-                    setEmailTestResult(res.message || '5-Day cycle alert sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#fff7ed',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#fdba74',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#c2410c" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#c2410c' }}>
-                  {emailTestLoading === '5day' ? 'Sending...' : '⏳ 5-Day Cycle Alert'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Weekly Digest */}
-              <TouchableOpacity
-                onPress={async () => {
-                  if (!user?.id) return;
-                  setEmailTestLoading('weekly');
-                  setEmailTestResult(null);
-                  try {
-                    const res = await triggerWeeklyReportEmail({ userId: user.id });
-                    setEmailTestResult(res.message || 'Weekly report digest sent!');
-                  } catch (e: any) {
-                    setEmailTestResult(`Error: ${e.message}`);
-                  } finally {
-                    setEmailTestLoading(null);
-                  }
-                }}
-                disabled={emailTestLoading !== null}
-                style={{
-                  backgroundColor: '#ecfdf5',
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#6ee7b7',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                }}
-              >
-                <Send size={12} color="#047857" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#047857' }}>
-                  {emailTestLoading === 'weekly' ? 'Sending...' : '📊 Weekly Digest Report'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         {/* PWA Mobile App Installation Banner */}
         <PWAInstallBanner />
-
-        {/* Development & Demo Testing Controls */}
-        <View style={[styles.card, styles.demoCard]}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <Sparkles size={18} color="#B45309" />
-            </View>
-            <Text style={styles.cardTitle}>Demo & Test Suite</Text>
-          </View>
-          <Text style={styles.demoDesc}>
-            Quickly test scenarios from the spec: loads ₹10,000 wallet top-up, Milk (₹60/day), Bus (₹40/day), Netflix (₹199/month), and manual expenses.
-          </Text>
-
-          <View style={styles.demoButtonsRow}>
-            <Button
-              title="Load Demo Dataset"
-              onPress={() => setShowDemoConfirm(true)}
-              variant="primary"
-              size="sm"
-              icon={<Sparkles size={14} color="#FFF" />}
-              style={styles.demoBtn}
-            />
-            <Button
-              title="Reset My Data"
-              onPress={() => setShowResetConfirm(true)}
-              variant="danger"
-              size="sm"
-              icon={<RotateCcw size={14} color="#FFF" />}
-              style={styles.demoBtn}
-            />
-          </View>
-        </View>
 
         {/* Logout Button */}
         <Button
@@ -766,32 +414,10 @@ export const SettingsScreen: React.FC<Props> = () => {
           fullWidth
         />
 
-        <Text style={styles.versionText}>வெற்றி நிதி மேலாண்மை v1.0.0 • Supabase + Resend Powered</Text>
+        <Text style={styles.versionText}>வெற்றி நிதி மேலாண்மை v1.0.0</Text>
       </ScrollView>
 
       {/* Confirmation Dialogs */}
-      <ConfirmationDialog
-        visible={showDemoConfirm}
-        title="Load Demo Dataset?"
-        message="This will add ₹10,000 wallet balance, Milk ₹60 daily, Bus ₹40 daily, Netflix ₹199 monthly, Lunch ₹200, and Shopping ₹500 for testing."
-        confirmTitle="Load Demo"
-        confirmVariant="primary"
-        loading={demoLoading}
-        onConfirm={handleLoadDemo}
-        onCancel={() => setShowDemoConfirm(false)}
-      />
-
-      <ConfirmationDialog
-        visible={showResetConfirm}
-        title="Reset All Financial Data?"
-        message="This will remove all your money additions, manual expenses, recurring rules and occurrences. This cannot be undone."
-        confirmTitle="Reset All Data"
-        confirmVariant="danger"
-        loading={resetLoading}
-        onConfirm={handleResetData}
-        onCancel={() => setShowResetConfirm(false)}
-      />
-
       <ConfirmationDialog
         visible={showLogoutConfirm}
         title="Sign Out of வெற்றி நிதி மேலாண்மை?"

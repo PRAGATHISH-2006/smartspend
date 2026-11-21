@@ -1,4 +1,4 @@
-// FixedExpensesScreen: Dedicated management of recurring expense rules, today's occurrences (with Pay/Edit Amount/Skip), and Automated 8 AM & 6 PM Email Reminders
+// FixedExpensesScreen: Dedicated management of recurring expense rules and today's occurrences (with Pay/Edit Amount/Skip)
 
 import React, { useState } from 'react';
 import {
@@ -9,7 +9,6 @@ import {
   RefreshControl,
   SafeAreaView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import {
@@ -17,14 +16,9 @@ import {
   Repeat,
   CalendarCheck,
   Lock,
-  Bell,
-  Clock,
-  Send,
-  CheckCircle2,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
-import { useAuth } from '../../context/AuthContext';
 import { useFinancial } from '../../context/FinancialContext';
 import { AppHeader } from '../../components/common/AppHeader';
 import { FixedExpenseCard } from '../../components/fixed/FixedExpenseCard';
@@ -37,12 +31,10 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { FixedExpenseRow } from '../../types/database';
 import { TodayFixedExpenseItem } from '../../types/financial';
 import { formatINR } from '../../utils/currency';
-import { getProxyEndpoints } from '../../services/emailReportService';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'FixedTab'>;
 
 export const FixedExpensesScreen: React.FC<Props> = () => {
-  const { user } = useAuth();
   const {
     refreshing,
     refreshData,
@@ -64,12 +56,6 @@ export const FixedExpensesScreen: React.FC<Props> = () => {
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [editingOccurrence, setEditingOccurrence] = useState<TodayFixedExpenseItem | null>(null);
 
-  // Reminders state
-  const [sendingReminder, setSendingReminder] = useState<boolean>(false);
-  const [reminderSentMsg, setReminderSentMsg] = useState<string | null>(null);
-
-  const recipientEmail = (user?.email || 'selvanpragathish@gmail.com').trim();
-
   // Compute monthly equivalent commitment
   const totalMonthlyCommitment = fixedExpenses
     .filter((r) => r.active)
@@ -88,54 +74,6 @@ export const FixedExpensesScreen: React.FC<Props> = () => {
     if (!deletingRuleId) return;
     await deleteFixedExpense(deletingRuleId);
     setDeletingRuleId(null);
-  };
-
-  const handleSendTestReminder = async () => {
-    setSendingReminder(true);
-    setReminderSentMsg(null);
-    let sentSuccess = false;
-    let successMessage = '';
-    let lastError = '';
-
-    const endpoints = getProxyEndpoints('/api/send-reminder');
-
-    for (const endpoint of endpoints) {
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slot: new Date().getHours() < 12 ? 'morning' : 'evening',
-            to: recipientEmail,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success) {
-            sentSuccess = true;
-            successMessage = data.message || `Reminder email dispatched to ${recipientEmail}!`;
-            break;
-          } else {
-            lastError = data.message || data.error || 'Failed to dispatch reminder';
-          }
-        }
-      } catch (err: any) {
-        lastError = err.message || 'Unable to connect to reminder service';
-      }
-    }
-
-    if (sentSuccess) {
-      setReminderSentMsg(successMessage);
-      Alert.alert(
-        'Reminder Dispatched! ⏰',
-        `Test reminder email successfully sent to ${recipientEmail}! Please check your Gmail Inbox & Spam folder.`
-      );
-    } else {
-      Alert.alert('Notice', lastError || 'Unable to connect to reminder service on port 3001');
-    }
-
-    setSendingReminder(false);
   };
 
   return (
@@ -184,62 +122,6 @@ export const FixedExpensesScreen: React.FC<Props> = () => {
           <View style={styles.kpiBadge}>
             <Text style={styles.kpiBadgeText}>{activeRulesCount} Active</Text>
           </View>
-        </View>
-
-        {/* Daily Email Reminders Card */}
-        <View style={styles.remindersCard}>
-          <View style={styles.remindersHeader}>
-            <View style={styles.reminderIconCircle}>
-              <Bell size={18} color={THEME.colors.primary} />
-            </View>
-            <View style={styles.reminderHeaderText}>
-              <View style={styles.reminderTitleRow}>
-                <Text style={styles.reminderTitle}>Daily Email Reminders</Text>
-                <View style={styles.activePill}>
-                  <Text style={styles.activePillText}>8:00 AM & 6:00 PM</Text>
-                </View>
-              </View>
-              <Text style={styles.reminderSub}>
-                Automated email reminders sent to <Text style={{ fontWeight: 'bold', color: THEME.colors.textPrimary }}>{recipientEmail}</Text> so you never forget to log or skip fixed commitments.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.slotsRow}>
-            <View style={styles.slotBox}>
-              <Clock size={15} color={THEME.colors.primary} />
-              <View>
-                <Text style={styles.slotTime}>08:00 AM</Text>
-                <Text style={styles.slotLabel}>Morning Checklist</Text>
-              </View>
-            </View>
-            <View style={styles.slotBox}>
-              <Clock size={15} color={THEME.colors.indigo} />
-              <View>
-                <Text style={styles.slotTime}>06:00 PM</Text>
-                <Text style={styles.slotLabel}>Evening Check-In</Text>
-              </View>
-            </View>
-          </View>
-
-          {reminderSentMsg && (
-            <View style={styles.reminderSuccessBox}>
-              <CheckCircle2 size={15} color={THEME.colors.primaryDark} />
-              <Text style={styles.reminderSuccessText}>{reminderSentMsg}</Text>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={styles.testReminderBtn}
-            onPress={handleSendTestReminder}
-            disabled={sendingReminder}
-            activeOpacity={0.8}
-          >
-            <Send size={14} color="#FFF" />
-            <Text style={styles.testReminderBtnText}>
-              {sendingReminder ? 'Sending Reminder Email...' : 'Send Test Reminder Email Now'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Section 1: Today's Occurrences */}

@@ -9,28 +9,15 @@ import {
   RefreshControl,
   SafeAreaView,
   TouchableOpacity,
-  Alert,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import {
-  BarChart3,
-  Calendar,
-  Sparkles,
-  Mail,
-  Send,
-  Eye,
-  FileSpreadsheet,
-  Layers,
   ArrowRight,
-  TrendingUp,
   Receipt,
-  FolderArchive,
 } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
-import { useAuth } from '../../context/AuthContext';
 import { useFinancial } from '../../context/FinancialContext';
 import { AppHeader } from '../../components/common/AppHeader';
 import {
@@ -50,18 +37,12 @@ import {
 import { ExpenseCard } from '../../components/expenses/ExpenseCard';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { ClosedMonthDetailsModal } from '../../components/reports/ClosedMonthDetailsModal';
-import {
-  triggerMonthlyReportEmail,
-  compileUserReport,
-} from '../../services/emailReportService';
-import { format, subDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { formatINR } from '../../utils/currency';
+import { format, startOfMonth, parseISO } from 'date-fns';
 import { CategorySpending, UnifiedTransaction, ClosedMonthRecord } from '../../types/financial';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'ReportsTab'>;
 
 export const ReportsScreen: React.FC<Props> = ({ navigation }) => {
-  const { user, profile } = useAuth();
   const {
     refreshing,
     refreshData,
@@ -84,10 +65,6 @@ export const ReportsScreen: React.FC<Props> = ({ navigation }) => {
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [selectedArchiveForModal, setSelectedArchiveForModal] = useState<ClosedMonthRecord | null>(null);
-  const [emailSending, setEmailSending] = useState<boolean>(false);
-  const [emailStatusMsg, setEmailStatusMsg] = useState<string | null>(null);
-
-  const registeredEmail = (user?.email || profile?.email || '').trim();
 
   // 1. Month Options for dropdown
   const monthOptions: MonthOption[] = useMemo(() => {
@@ -335,54 +312,6 @@ export const ReportsScreen: React.FC<Props> = ({ navigation }) => {
 
     return list;
   }, [closedMonths, summary]);
-
-  // 7. Email Report Dispatcher Handler
-  const handleDispatchEmail = async () => {
-    if (!registeredEmail) {
-      Alert.alert('Email Missing', 'Please update your email in Settings to dispatch reports.');
-      return;
-    }
-
-    setEmailSending(true);
-    setEmailStatusMsg(null);
-
-    try {
-      const res = await triggerMonthlyReportEmail();
-      if (res.success) {
-        setEmailStatusMsg(`Monthly statement sent successfully to ${registeredEmail}`);
-      } else {
-        setEmailStatusMsg(res.error || 'Failed to dispatch email statement.');
-      }
-    } catch (err: any) {
-      setEmailStatusMsg(err.message || 'Error dispatching email.');
-    } finally {
-      setEmailSending(false);
-    }
-  };
-
-  const handlePreviewReport = async () => {
-    if (!user?.id) return;
-    try {
-      const compiled = await compileUserReport({
-        userId: user.id,
-        startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-        endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
-        reportType: 'monthly',
-      });
-
-      if (!compiled?.htmlContent) return;
-
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const blob = new Blob([compiled.htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-      } else {
-        Alert.alert('Report Preview', 'Full visual report prepared.');
-      }
-    } catch (err: any) {
-      Alert.alert('Preview Error', err.message || 'Failed to generate preview.');
-    }
-  };
 
   return (
     <SafeAreaView style={styles.safeArea}>

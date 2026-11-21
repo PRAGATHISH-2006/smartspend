@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   RefreshControl,
@@ -11,7 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { Plus, Wallet, Receipt, FileSpreadsheet, Mail } from 'lucide-react-native';
+import { Plus, Wallet, Receipt } from 'lucide-react-native';
 import { THEME } from '../../constants/theme';
 import { MainTabParamList } from '../../types/navigation';
 import { useFinancial } from '../../context/FinancialContext';
@@ -20,10 +19,8 @@ import { ExpenseCard } from '../../components/expenses/ExpenseCard';
 import { TransactionFilterBar, FilterTab } from '../../components/expenses/TransactionFilterBar';
 import { AddExpenseModal } from '../../components/expenses/AddExpenseModal';
 import { AddMoneyModal } from '../../components/expenses/AddMoneyModal';
-import { GenerateReportModal } from '../../components/expenses/GenerateReportModal';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { EmptyState } from '../../components/common/EmptyState';
-import { UnifiedTransaction } from '../../types/financial';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'ExpensesTab'>;
 
@@ -44,7 +41,6 @@ export const ExpensesScreen: React.FC<Props> = () => {
 
   const [showAddExpense, setShowAddExpense] = useState<boolean>(false);
   const [showAddMoney, setShowAddMoney] = useState<boolean>(false);
-  const [showGenerateReport, setShowGenerateReport] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
 
   // Available unique categories in user's transactions
@@ -86,14 +82,6 @@ export const ExpensesScreen: React.FC<Props> = () => {
         rightElement={
           <View style={styles.headerBtnRow}>
             <TouchableOpacity
-              style={[styles.headerIconBtn, styles.headerReportBtn]}
-              onPress={() => setShowGenerateReport(true)}
-              activeOpacity={0.8}
-              accessibilityLabel="Generate Report"
-            >
-              <FileSpreadsheet size={16} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.headerIconBtn, styles.headerMoneyBtn]}
               onPress={() => setShowAddMoney(true)}
               activeOpacity={0.8}
@@ -120,25 +108,6 @@ export const ExpensesScreen: React.FC<Props> = () => {
         onSelectCategory={setSelectedCategory}
         availableCategories={availableCategories}
       />
-
-      {/* Quick Generate Report Bar */}
-      <View style={styles.reportBarContainer}>
-        <View style={styles.reportBarLeft}>
-          <FileSpreadsheet size={16} color={THEME.colors.primary} />
-          <View>
-            <Text style={styles.reportBarTitle}>Generate Custom Report</Text>
-            <Text style={styles.reportBarSub}>Email audit report to selvanpragathish@gmail.com</Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.generateReportBtn}
-          onPress={() => setShowGenerateReport(true)}
-          activeOpacity={0.8}
-        >
-          <Mail size={13} color="#FFF" />
-          <Text style={styles.generateReportBtnText}>Generate</Text>
-        </TouchableOpacity>
-      </View>
 
       <FlatList
         data={filteredTransactions}
