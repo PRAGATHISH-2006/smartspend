@@ -60,16 +60,16 @@ export const PWAInstallBanner: React.FC = () => {
 
         <View style={styles.textCol}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Install வெற்றி நிதி மேலாண்மை App</Text>
+            <Text style={styles.title} numberOfLines={1}>Install Web App</Text>
             <View style={styles.badge}>
               <Sparkles size={10} color="#047857" />
               <Text style={styles.badgeText}>PWA</Text>
             </View>
           </View>
-          <Text style={styles.subtitle}>
+          <Text style={styles.subtitle} numberOfLines={1}>
             {isIOS
-              ? 'Tap Share ➔ "Add to Home Screen" to install'
-              : 'Add to your Home Screen for full app experience'}
+              ? 'Tap Share ➔ Add to Home Screen'
+              : 'Add to Home Screen for fast access'}
           </Text>
         </View>
 
@@ -164,17 +164,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#059669',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 8,
+    flexShrink: 0,
   },
   installBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#ffffff',
   },
   closeBtn: {
     padding: 4,
+    flexShrink: 0,
   },
   iosGuideBox: {
     marginTop: 10,

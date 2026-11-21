@@ -1,4 +1,4 @@
-// AppHeader: Clean modern mobile header with branding, greeting and notification badge
+// AppHeader: Responsive modern header with navigation drawer toggle, branding, greeting and notification badge
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
@@ -35,10 +35,94 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const { unreadCount } = useNotification();
   const { isDesktop, toggleMobileMenu } = useSidebar();
 
+  // Desktop Header (Single unified horizontal row)
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopContainer}>
+        <View style={styles.desktopBrandingRow}>
+          {showLeaderPhoto ? (
+            <View style={styles.leaderAvatarWrapper}>
+              <Image
+                source={require('../../../assets/brand/leader_square.png')}
+                style={styles.leaderAvatar}
+                resizeMode="cover"
+              />
+            </View>
+          ) : showBrandLogo ? (
+            <Image
+              source={require('../../../assets/brand/emblem.png')}
+              style={styles.brandEmblem}
+              resizeMode="contain"
+            />
+          ) : null}
+          <View style={styles.desktopTextContainer}>
+            <Text style={styles.desktopTitle} numberOfLines={1}>{title}</Text>
+            {subtitle ? <Text style={styles.desktopSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          </View>
+        </View>
+
+        <View style={styles.desktopActionsContainer}>
+          {rightElement}
+
+          {showLoginButton && (
+            !session ? (
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={onLoginPress}
+                activeOpacity={0.8}
+                accessibilityLabel="Login to Account"
+              >
+                <View style={styles.loginIconCircle}>
+                  <LogIn size={13} color="#090D16" />
+                </View>
+                <Text style={styles.loginBtnText}>Login</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.userProfilePill}
+                onPress={onLoginPress}
+                activeOpacity={0.8}
+                accessibilityLabel="Account Profile"
+              >
+                <View style={styles.onlineDot} />
+                <User size={13} color="#FACC15" />
+                <Text style={styles.userProfileText} numberOfLines={1}>
+                  {profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+
+          {showNotificationBell && (
+            <TouchableOpacity
+              style={styles.bellButton}
+              onPress={onNotificationPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Notifications"
+            >
+              <Bell size={19} color={THEME.colors.textPrimary} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile Header: Two-tier layout preventing horizontal squishing
+  // Tier 1: Action Bar (Menu, Leader Avatar, Profile Pill, Bell)
+  // Tier 2: Full-width Title & Subtitle (Zero word breaks or vertical single-letter columns)
   return (
-    <View style={styles.container}>
-      <View style={styles.brandingRow}>
-        {!isDesktop && (
+    <View style={styles.mobileContainer}>
+      {/* Tier 1: Mobile Top Action Bar */}
+      <View style={styles.mobileTopBar}>
+        <View style={styles.mobileLeftGroup}>
           <TouchableOpacity
             style={styles.menuButton}
             onPress={toggleMobileMenu}
@@ -47,85 +131,138 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           >
             <Menu size={20} color="#F8FAFC" />
           </TouchableOpacity>
-        )}
-        {showLeaderPhoto ? (
-          <View style={styles.leaderAvatarWrapper}>
+
+          {showLeaderPhoto ? (
+            <View style={styles.leaderAvatarWrapper}>
+              <Image
+                source={require('../../../assets/brand/leader_square.png')}
+                style={styles.leaderAvatar}
+                resizeMode="cover"
+              />
+            </View>
+          ) : showBrandLogo ? (
             <Image
-              source={require('../../../assets/brand/leader_square.png')}
-              style={styles.leaderAvatar}
-              resizeMode="cover"
+              source={require('../../../assets/brand/emblem.png')}
+              style={styles.brandEmblem}
+              resizeMode="contain"
             />
-          </View>
-        ) : showBrandLogo ? (
-          <Image
-            source={require('../../../assets/brand/emblem.png')}
-            style={styles.brandEmblem}
-            resizeMode="contain"
-          />
-        ) : null}
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          ) : null}
+        </View>
+
+        <View style={styles.mobileRightGroup}>
+          {rightElement}
+
+          {showLoginButton && (
+            !session ? (
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={onLoginPress}
+                activeOpacity={0.8}
+                accessibilityLabel="Login to Account"
+              >
+                <View style={styles.loginIconCircle}>
+                  <LogIn size={12} color="#090D16" />
+                </View>
+                <Text style={styles.loginBtnText}>Login</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.userProfilePill,
+                  rightElement ? styles.userProfilePillCompact : null,
+                ]}
+                onPress={onLoginPress}
+                activeOpacity={0.8}
+                accessibilityLabel="Account Profile"
+              >
+                <View style={styles.onlineDot} />
+                <User size={12} color="#FACC15" />
+                {!rightElement && (
+                  <Text style={styles.userProfileText} numberOfLines={1}>
+                    {profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )
+          )}
+
+          {showNotificationBell && (
+            <TouchableOpacity
+              style={styles.bellButton}
+              onPress={onNotificationPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Notifications"
+            >
+              <Bell size={18} color={THEME.colors.textPrimary} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      <View style={styles.actionsContainer}>
-        {rightElement}
-
-        {/* Top Header Login / User Indicator Button */}
-        {showLoginButton && (
-          !session ? (
-            <TouchableOpacity
-              style={styles.loginBtn}
-              onPress={onLoginPress}
-              activeOpacity={0.8}
-              accessibilityLabel="Login to Account"
-            >
-              <View style={styles.loginIconCircle}>
-                <LogIn size={13} color="#090D16" />
-              </View>
-              <Text style={styles.loginBtnText}>Login</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.userProfilePill}
-              onPress={onLoginPress}
-              activeOpacity={0.8}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={styles.onlineDot} />
-              <User size={13} color="#FACC15" />
-              <Text style={styles.userProfileText} numberOfLines={1}>
-                {profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User'}
-              </Text>
-            </TouchableOpacity>
-          )
-        )}
-
-        {showNotificationBell && (
-          <TouchableOpacity
-            style={styles.bellButton}
-            onPress={onNotificationPress}
-            activeOpacity={0.7}
-            accessibilityLabel="Notifications"
-          >
-            <Bell size={20} color={THEME.colors.textPrimary} />
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
+      {/* Tier 2: Mobile Title & Subtitle Block (FULL WIDTH, NO WRAPPING BUGS) */}
+      <View style={styles.mobileTitleBlock}>
+        <Text style={styles.mobileTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={styles.mobileSubtitle} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  // Mobile Header Styles
+  mobileContainer: {
+    paddingHorizontal: THEME.spacing.lg,
+    paddingTop: THEME.spacing.md,
+    paddingBottom: THEME.spacing.sm,
+    backgroundColor: THEME.colors.background,
+  },
+  mobileTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  mobileLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mobileRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mobileTitleBlock: {
+    marginTop: 10,
+    width: '100%',
+  },
+  mobileTitle: {
+    fontSize: 20,
+    fontWeight: THEME.typography.weights.heavy,
+    color: '#F8FAFC',
+    letterSpacing: -0.3,
+  },
+  mobileSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+    lineHeight: 17,
+  },
+
+  // Desktop Header Styles
+  desktopContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -134,12 +271,33 @@ const styles = StyleSheet.create({
     paddingBottom: THEME.spacing.sm,
     backgroundColor: THEME.colors.background,
   },
-  brandingRow: {
+  desktopBrandingRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  desktopTextContainer: {
+    flex: 1,
+  },
+  desktopTitle: {
+    fontSize: THEME.typography.sizes.xxl,
+    fontWeight: THEME.typography.weights.heavy,
+    color: THEME.colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  desktopSubtitle: {
+    fontSize: THEME.typography.sizes.sm,
+    color: THEME.colors.textSecondary,
+    marginTop: 2,
+  },
+  desktopActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: THEME.spacing.sm,
+  },
+
+  // Common Elements
   menuButton: {
     width: 38,
     height: 38,
@@ -151,9 +309,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   leaderAvatarWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 2,
     borderColor: '#EAB308',
     backgroundColor: '#0F172A',
@@ -169,35 +327,16 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   brandEmblem: {
-    width: 36,
-    height: 36,
-  },
-  textContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: THEME.typography.sizes.xxl,
-    fontWeight: THEME.typography.weights.heavy,
-    color: THEME.colors.textPrimary,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: THEME.typography.sizes.sm,
-    color: THEME.colors.textSecondary,
-    marginTop: 2,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: THEME.spacing.sm,
+    width: 34,
+    height: 34,
   },
   loginBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#EAB308', // Warm Gold
-    paddingVertical: 7,
-    paddingHorizontal: 13,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: THEME.borderRadius.full,
     borderWidth: 1.5,
     borderColor: '#FACC15',
@@ -208,9 +347,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   loginIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -227,16 +366,20 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: 'rgba(220, 38, 38, 0.15)',
     paddingVertical: 6,
-    paddingHorizontal: 11,
+    paddingHorizontal: 10,
     borderRadius: THEME.borderRadius.full,
     borderWidth: 1,
     borderColor: '#DC2626',
     maxWidth: 130,
   },
+  userProfilePillCompact: {
+    paddingHorizontal: 8,
+    maxWidth: 44,
+  },
   onlineDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#10B981',
   },
   userProfileText: {
@@ -245,14 +388,14 @@ const styles = StyleSheet.create({
     fontWeight: THEME.typography.weights.bold,
   },
   bellButton: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: THEME.borderRadius.full,
-    backgroundColor: THEME.colors.surface,
+    backgroundColor: '#111726',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: THEME.colors.border,
+    borderColor: '#1E293B',
     ...THEME.shadows.subtle,
   },
   badge: {
@@ -261,17 +404,18 @@ const styles = StyleSheet.create({
     right: -2,
     backgroundColor: THEME.colors.danger,
     borderRadius: THEME.borderRadius.full,
-    minWidth: 18,
-    height: 18,
+    minWidth: 17,
+    height: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: THEME.colors.surface,
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#111726',
   },
   badgeText: {
-    color: THEME.colors.textInverse,
-    fontSize: 10,
-    fontWeight: THEME.typography.weights.bold,
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: THEME.typography.weights.heavy,
   },
 });
+
