@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import { THEME } from '../constants/theme';
 import { MainTabParamList } from '../types/navigation';
 import { HomeScreen } from '../screens/main/HomeScreen';
@@ -19,21 +20,27 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const MainTabContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('HomeTab');
   const navRef = useRef<any>(null);
+  const rootNavigation = useNavigation<any>();
+
+  const handleSelectTab = (tabName: string) => {
+    setActiveTab(tabName);
+    if (tabName === 'Login') {
+      rootNavigation.navigate('Login');
+      return;
+    }
+    if (navRef.current?.navigate) {
+      navRef.current.navigate(tabName);
+    } else {
+      rootNavigation.navigate(tabName);
+    }
+  };
 
   return (
     <View style={styles.layoutContainer}>
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={activeTab}
-        onSelectTab={(tabName) => {
-          if (tabName === 'Login') {
-            (navRef.current as any)?.getParent()?.navigate('Login');
-            return;
-          }
-          if (navRef.current) {
-            navRef.current.navigate(tabName);
-          }
-        }}
+        onSelectTab={handleSelectTab}
       />
 
       {/* Screen Area */}

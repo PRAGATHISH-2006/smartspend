@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { addDays, format, endOfMonth, addMonths, parseISO } from 'date-fns';
+import { addDays, format, endOfMonth, addMonths, parseISO, getDate } from 'date-fns';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import {
@@ -273,6 +273,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           name: c.name,
           icon: c.icon,
           color: c.color,
+          is_default: true,
           created_at: new Date().toISOString(),
         }))
       );
